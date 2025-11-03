@@ -270,8 +270,8 @@ WidgetMetadata = {
         {
           name: "with_networks",
           title: "播出平台",
-          type: "enumeration",
-          enumOptions: [
+          type: "input",
+          placeholders: [
             {
               title: "Netflix",
               value: "213",
@@ -292,6 +292,14 @@ WidgetMetadata = {
               title: "Hulu",
               value: "453",
             },
+            {
+              title: "Prime Video",
+              value: "1024",
+            }, 
+            {
+              title: "Paramount+",
+              value: "4330",
+            }
           ],
         },
         {
