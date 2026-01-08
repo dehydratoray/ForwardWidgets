@@ -106,7 +106,7 @@ async function fetchTrakt(endpoint, params) {
   }
 
   const page = params.page || 1;
-  const limit = 20;
+  const limit = 40; // Increased limit to load more items
   const url = `${TRAKT_API_URL}${endpoint}?page=${page}&limit=${limit}&extended=full`;
 
   const options = {
@@ -142,33 +142,36 @@ function mapTraktItemsToForward(items, type) {
   }).filter(Boolean);
 }
 
-// Fetch images from TMDB for a list of items
+// Fetch images from TMDB for a list of items with batching to prevent timeouts
 async function fetchTmdbImages(items) {
-  const promises = items.map(async (item) => {
-    if (!item || !item.id) return item;
+  const BATCH_SIZE = 5;
+  const results = [];
 
-    try {
-      // Use the item's media type (movie/tv) and ID to query TMDB
-      // Widget.tmdb.get uses the app's internal TMDB client
-      const response = await Widget.tmdb.get(`${item.mediaType}/${item.id}`, {});
-      
-      if (response) {
-        // TMDB returns relative paths, e.g., "/path.jpg"
-        // The app usually handles the base URL for these.
-        if (response.poster_path) item.posterPath = response.poster_path;
-        if (response.backdrop_path) item.backdropPath = response.backdrop_path;
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    
+    const batchPromises = batch.map(async (item) => {
+      if (!item || !item.id) return item;
+
+      try {
+        const response = await Widget.tmdb.get(`${item.mediaType}/${item.id}`, {});
         
-        // Optional: Enhance other metadata if TMDB has better data
-        if (response.overview && !item.description) item.description = response.overview;
+        if (response) {
+          if (response.poster_path) item.posterPath = response.poster_path;
+          if (response.backdrop_path) item.backdropPath = response.backdrop_path;
+          if (response.overview && !item.description) item.description = response.overview;
+        }
+      } catch (e) {
+        // Ignore errors for individual items
       }
-    } catch (e) {
-      // Quietly fail for individual items to keep the list functional
-      // console.log(`Failed to load TMDB image for ${item.title}: ${e.message}`);
-    }
-    return item;
-  });
+      return item;
+    });
 
-  return await Promise.all(promises);
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+  }
+
+  return results;
 }
 
 // --- Main Functions ---
