@@ -1,161 +1,189 @@
 var WidgetMetadata = {
-  id: "trakt_trending",
-  title: "Trakt Trending",
-  description: "Browse trending movies/shows from Trakt.",
-  author: "ForwardWidget User",
-  site: "https://trakt.tv/",
-  version: "1.0.0",
-  requiredVersion: "0.0.1",
-  modules: [
-    {
-      title: "Trending",
-      description: "Trending movies or shows on Trakt.",
-      requiresWebView: false,
-      functionName: "trending",
-      sectionMode: false,
-      params: [
+    id: "forward.trakt.trending",
+    title: "Trakt Trending",
+    version: "1.0.0",
+    requiredVersion: "0.0.1",
+    description: "Browse trending movies/shows from Trakt.",
+    author: "ForwardWidget User",
+    site: "https://trakt.tv/",
+    modules: [
         {
-          name: "clientId",
-          title: "Trakt Client ID",
-          type: "input",
-          description: "Your Trakt app Client ID (public).",
-          value: "",
-          placeholders: [
-            { title: "Paste your client_id here", value: "06b6df28ce91aafbbedb1452531ef1e18d3404777e6591eafba904b46cd4ca6e" }
-          ]
+            id: "trendingMovies",
+            title: "Trending Movies",
+            functionName: "trendingMovies",
+            params: [
+                {
+                    name: "clientId",
+                    title: "Trakt Client ID",
+                    type: "input",
+                    description: "Your Trakt app Client ID (public).",
+                    value: ""
+                }
+            ]
         },
         {
-          name: "type",
-          title: "Type",
-          type: "enumeration",
-          description: "Trending movies or shows.",
-          value: "movies",
-          enumOptions: [
-            { title: "Movies", value: "movies" },
-            { title: "Shows", value: "shows" }
-          ]
-        },
-        {
-          name: "limit",
-          title: "Limit",
-          type: "count",
-          description: "Number of items to return.",
-          value: 20
-        },
-        {
-          name: "extended",
-          title: "Extended",
-          type: "enumeration",
-          description: "Use 'full' for more fields (overview, runtime, etc.).",
-          value: "full",
-          enumOptions: [
-            { title: "Full", value: "full" },
-            { title: "Min", value: "min" }
-          ]
+            id: "trendingShows",
+            title: "Trending Shows",
+            functionName: "trendingShows",
+            params: [
+                {
+                    name: "clientId",
+                    title: "Trakt Client ID",
+                    type: "input",
+                    description: "Your Trakt app Client ID (public).",
+                    value: ""
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 };
 
-function clampInt(n, min, max, fallback) {
-  const x = parseInt(n, 10);
-  if (Number.isNaN(x)) return fallback;
-  return Math.max(min, Math.min(max, x));
-}
+// --- Helper Functions ---
 
 function safeStr(v) {
-  return (v === undefined || v === null) ? "" : String(v);
+    return (v === undefined || v === null) ? "" : String(v);
 }
 
 function toISODate(v) {
-  // Trakt often returns YYYY-MM-DD
-  const s = safeStr(v).trim();
-  return s || "";
+    // Trakt returns YYYY-MM-DD
+    const s = safeStr(v).trim();
+    return s || "";
 }
 
 function buildTraktHeaders(clientId) {
-  return {
-    "Content-Type": "application/json",
-    "trakt-api-version": "2",
-    "trakt-api-key": clientId
-  };
+    return {
+        "Content-Type": "application/json",
+        "trakt-api-version": "2",
+        "trakt-api-key": clientId
+    };
 }
 
-function makeTmdbId(mediaType, tmdbId) {
-  if (!tmdbId) return "";
-  return mediaType + "." + String(tmdbId);
-}
+// --- Data Formatting ---
 
-function mapTrendingItem(item, type) {
-  // Response items look like: { watchers: n, movie: {...} } or { watchers: n, show: {...} }
-  const mediaType = (type === "shows") ? "tv" : "movie";
-  const obj = (type === "shows") ? item.show : item.movie;
+function formatTraktData(list, type) {
+    // list is array of { watchers: n, movie/show: {...} }
+    const isMovie = (type === "movies");
 
-  const title = safeStr(obj && obj.title);
-  const year = obj && obj.year;
-
-  const ids = (obj && obj.ids) || {};
-  const tmdb = ids.tmdb;
-
-  // ForwardWidget wants tmdb id composed like tv.123 or movie.234 when type == tmdb
-  const tmdbComposed = makeTmdbId(mediaType, tmdb);
-
-  // Trakt does not provide poster/backdrop URLs directly.
-  // Use TMDB-based id and let the app resolve images if it supports TMDB enrichment.
-
-  return {
-    id: tmdbComposed || safeStr(ids.imdb) || safeStr(ids.trakt) || title,
-    type: tmdbComposed ? "tmdb" : (ids.imdb ? "imdb" : "url"),
-    title: year ? (title + " (" + year + ")") : title,
-    posterPath: "",
-    backdropPath: "",
-    releaseDate: toISODate(obj && (obj.released || obj.first_aired)),
-    mediaType: mediaType,
-    rating: obj && obj.rating != null ? String(obj.rating) : "",
-    genreTitle: Array.isArray(obj && obj.genres) ? obj.genres.join(", ") : "",
-    duration: obj && obj.runtime != null ? Number(obj.runtime) : undefined,
-    durationText: "",
-    previewUrl: "",
-    videoUrl: "",
-    link: ids && ids.slug ? ("https://trakt.tv/" + mediaType + "s/" + ids.slug) : "",
-    description: safeStr(obj && obj.overview),
-    childItems: []
-  };
-}
-
-async function trending(params = {}) {
-  try {
-    const clientId = safeStr(params.clientId).trim();
-    if (!clientId) {
-      throw new Error("Missing Trakt Client ID (clientId). Create an app on trakt.tv and paste the Client ID.");
-    }
-
-    const type = (safeStr(params.type).trim() === "shows") ? "shows" : "movies";
-    const limit = clampInt(params.limit, 1, 100, 20);
-    const extended = (safeStr(params.extended).trim() === "min") ? "min" : "full";
-
-    const url = `https://api.trakt.tv/${type}/trending?limit=${encodeURIComponent(limit)}&extended=${encodeURIComponent(extended)}`;
-
-    const response = await Widget.http.get(url, {
-      headers: {
-        ...buildTraktHeaders(clientId),
-        "User-Agent": "ForwardWidget/TraktTrending (compatible; +https://trakt.tv)"
-      }
+    // Validate and filter
+    const validList = list.filter(item => {
+        const obj = isMovie ? item.movie : item.show;
+        return obj && obj.title && obj.ids;
     });
 
-    const data = response && response.data;
+    return validList.map(item => {
+        const obj = isMovie ? item.movie : item.show;
+        const ids = obj.ids || {};
+        const tmdbId = ids.tmdb;
+        const isTv = !isMovie;
 
-    // Some environments auto-parse JSON, others return string.
-    const list = (typeof data === "string") ? JSON.parse(data) : data;
+        const title = safeStr(obj.title);
+        const year = obj.year ? String(obj.year) : "";
 
-    if (!Array.isArray(list)) {
-      throw new Error("Unexpected response from Trakt trending endpoint.");
+        // Construct TMDB Info object
+        const tmdbInfo = {
+            id: tmdbId ? String(tmdbId) : "",
+            originalTitle: title, // Trakt doesn't always send original title in valid format, use title fallback
+            description: safeStr(obj.overview),
+            releaseDate: toISODate(obj.released || obj.first_aired),
+            backdropPath: "", // Trakt doesn't provide these
+            posterPath: "",
+            rating: obj.rating ? Number(obj.rating) : 0,
+            mediaType: isTv ? "tv" : "movie",
+            genreTitle: Array.isArray(obj.genres) ? obj.genres.join(", ") : "",
+            popularity: item.watchers || 0, // Use watchers as popularity proxy
+            voteCount: obj.votes || 0,
+        };
+
+        // ForwardWidget Requirement: TMDB ID must be composed of type.id (e.g. tv.123 or movie.234)
+        // If no TMDB ID, fallback to other IDs (imdb or trakt) without prefix, or random.
+        let uniqueId = "";
+        let itemType = "tmdb";
+
+        if (tmdbId) {
+            uniqueId = (isTv ? "tv." : "movie.") + tmdbId;
+            itemType = "tmdb";
+        } else if (ids.imdb) {
+            uniqueId = ids.imdb;
+            itemType = "imdb";
+        } else {
+            uniqueId = String(ids.trakt) || Math.random().toString(36);
+            itemType = "url"; // Fallback nature
+        }
+
+        return {
+            id: uniqueId,
+            type: itemType,
+            title: title,
+            originalTitle: title,
+            description: tmdbInfo.description,
+            releaseDate: tmdbInfo.releaseDate,
+            backdropPath: "",
+            posterPath: "",
+            rating: tmdbInfo.rating,
+            mediaType: tmdbInfo.mediaType,
+            genreTitle: tmdbInfo.genreTitle,
+            tmdbInfo: tmdbInfo,
+            year: year,
+            countries: [], // Trakt data might not have this easily available in simple response
+            directors: [],
+            actors: [],
+            popularity: tmdbInfo.popularity,
+            voteCount: tmdbInfo.voteCount,
+            isNew: false,
+            playable: false,
+            episodeCount: "",
+        };
+    });
+}
+
+// --- Fetch Logic ---
+
+async function fetchTraktTrending(type, params) {
+    const clientId = safeStr(params.clientId).trim();
+
+    if (!clientId) {
+        // For user experience, we can return empty or throw. 
+        // Throwing error makes it clear they need to configure it.
+        throw new Error("Trakt Client ID is required. Please enter it in the widget settings.");
     }
 
-    return list.map(it => mapTrendingItem(it, type)).filter(x => x && x.title);
-  } catch (error) {
-    console.error("Trakt Trending widget failed:", error);
-    throw error;
-  }
+    // API: https://api.trakt.tv/movies/trending
+    // API: https://api.trakt.tv/shows/trending
+    // extended=full provides more info like overview, genres
+    const url = `https://api.trakt.tv/${type}/trending?extended=full&limit=20`;
+
+    console.log(`Fetching Trakt ${type} trending...`);
+
+    try {
+        const response = await Widget.http.get(url, {
+            headers: {
+                ...buildTraktHeaders(clientId),
+                "User-Agent": "ForwardWidget/1.0"
+            }
+        });
+
+        const data = response && response.data;
+        const list = (typeof data === "string") ? JSON.parse(data) : data;
+
+        if (!Array.isArray(list)) {
+            console.error("Invalid Trakt response format");
+            return [];
+        }
+
+        return formatTraktData(list, type);
+
+    } catch (error) {
+        console.error(`Failed to fetch Trakt ${type}:`, error);
+        throw error; // Re-throw to show error in UI
+    }
+}
+
+// --- Module Functions ---
+
+async function trendingMovies(params) {
+    return await fetchTraktTrending("movies", params);
+}
+
+async function trendingShows(params) {
+    return await fetchTraktTrending("shows", params);
 }
