@@ -10,15 +10,6 @@ WidgetMetadata = {
   author: "Forward",
   site: "https://mdblist.com",
   icon: "https://mdblist.com/assets/img/logo_square.png",
-  globalParams: [
-    {
-      name: "api_key",
-      title: "API Key",
-      type: "input",
-      description: "Your MDBList API Key (from https://mdblist.com/preferences)",
-      value: "", 
-    }
-  ],
   modules: [
     {
       id: "loadList",
@@ -31,8 +22,15 @@ WidgetMetadata = {
           type: "input",
           description: "e.g., https://mdblist.com/lists/user/list-name or just the ID",
           placeholders: [
-             { title: "Top 100 Movies", value: "https://mdblist.com/lists/linaspurinis/top-100-movies" } // Example placeholder
+             { title: "Top 100 Movies", value: "https://mdblist.com/lists/linaspurinis/top-100-movies" }
           ]
+        },
+        {
+          name: "api_key",
+          title: "API Key",
+          type: "input",
+          description: "Your MDBList API Key",
+          value: ""
         },
         { name: "page", title: "Page", type: "page" }
       ]
@@ -43,7 +41,7 @@ WidgetMetadata = {
 async function loadList(params) {
   const apiKey = params.api_key;
   if (!apiKey) {
-    throw new Error("Please configure your MDBList API Key in the widget settings.");
+    throw new Error("Please provide your MDBList API Key.");
   }
 
   let input = params.url;

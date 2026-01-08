@@ -51,11 +51,47 @@ WidgetMetadata = {
       params: [
         { name: "page", title: "Page", type: "page" }
       ]
+    },
+    {
+      id: "load_list",
+      title: "Load Custom List",
+      functionName: "getCustomList",
+      params: [
+        {
+          name: "url",
+          title: "List URL",
+          type: "input",
+          description: "Trakt List URL (e.g., https://trakt.tv/users/official/lists/trending)",
+          value: ""
+        },
+        {
+          name: "client_id",
+          title: "Client ID",
+          type: "input",
+          description: "Your Trakt API Client ID",
+          value: ""
+        },
+        { name: "page", title: "Page", type: "page" }
+      ]
     }
   ]
 };
 
 // --- Helper Functions ---
+
+async function getCustomList(params) {
+    const urlInput = params.url;
+    if (!urlInput) throw new Error("Please provide a Trakt List URL.");
+    
+    // Extract user and list name from URL
+    const match = urlInput.match(/users\/([^\/]+)\/lists\/([^\/]+)/);
+    if (!match) throw new Error("Invalid Trakt List URL. Must be in format: https://trakt.tv/users/{user}/lists/{slug}");
+    
+    const user = match[1];
+    const list = match[2];
+    const data = await fetchTrakt(`/users/${user}/lists/${list}/items`, params, params);
+    return mapTraktItemsToForward(data, "movie");
+}
 
 async function fetchTrakt(endpoint, params, globalParams) {
   const clientId = globalParams.client_id;
