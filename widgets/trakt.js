@@ -1,3 +1,4 @@
+
 const TRAKT_API_URL = "https://api.trakt.tv";
 
 WidgetMetadata = {
@@ -141,24 +142,59 @@ function mapTraktItemsToForward(items, type) {
   }).filter(Boolean);
 }
 
+// Fetch images from TMDB for a list of items
+async function fetchTmdbImages(items) {
+  const promises = items.map(async (item) => {
+    if (!item || !item.id) return item;
+
+    try {
+      // Use the item's media type (movie/tv) and ID to query TMDB
+      // Widget.tmdb.get uses the app's internal TMDB client
+      const response = await Widget.tmdb.get(`${item.mediaType}/${item.id}`, {});
+      
+      if (response) {
+        // TMDB returns relative paths, e.g., "/path.jpg"
+        // The app usually handles the base URL for these.
+        if (response.poster_path) item.posterPath = response.poster_path;
+        if (response.backdrop_path) item.backdropPath = response.backdrop_path;
+        
+        // Optional: Enhance other metadata if TMDB has better data
+        if (response.overview && !item.description) item.description = response.overview;
+      }
+    } catch (e) {
+      // Quietly fail for individual items to keep the list functional
+      // console.log(`Failed to load TMDB image for ${item.title}: ${e.message}`);
+    }
+    return item;
+  });
+
+  return await Promise.all(promises);
+}
+
+// --- Main Functions ---
+
 async function getTrendingMovies(params) {
   const data = await fetchTrakt("/movies/trending", params); 
-  return mapTraktItemsToForward(data, "movie");
+  const items = mapTraktItemsToForward(data, "movie");
+  return await fetchTmdbImages(items);
 }
 
 async function getPopularMovies(params) {
   const data = await fetchTrakt("/movies/popular", params);
-  return mapTraktItemsToForward(data, "movie");
+  const items = mapTraktItemsToForward(data, "movie");
+  return await fetchTmdbImages(items);
 }
 
 async function getTrendingShows(params) {
   const data = await fetchTrakt("/shows/trending", params);
-  return mapTraktItemsToForward(data, "tv");
+  const items = mapTraktItemsToForward(data, "tv");
+  return await fetchTmdbImages(items);
 }
 
 async function getPopularShows(params) {
   const data = await fetchTrakt("/shows/popular", params);
-  return mapTraktItemsToForward(data, "tv");
+  const items = mapTraktItemsToForward(data, "tv");
+  return await fetchTmdbImages(items);
 }
 
 async function getCustomList(params) {
@@ -169,5 +205,6 @@ async function getCustomList(params) {
     const user = match[1];
     const list = match[2];
     const data = await fetchTrakt(`/users/${user}/lists/${list}/items`, params);
-    return mapTraktItemsToForward(data, "movie");
+    const items = mapTraktItemsToForward(data, "movie");
+    return await fetchTmdbImages(items);
 }
