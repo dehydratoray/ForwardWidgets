@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.mdblist.custom",
     title: "MDBList Custom",
-    version: "1.0.2",
+    version: "1.0.3",
     requiredVersion: "0.0.1",
     description: "Load custom lists from MDBList.com (requires API Key).",
     author: "ForwardWidget User",
@@ -16,7 +16,7 @@ var WidgetMetadata = {
                     name: "url",
                     title: "MDBList URL or ID",
                     type: "input",
-                    description: "URL or numeric List ID (e.g. 12345)",
+                    description: "URL or numeric List ID (e.g. 198200)",
                     value: "",
                     placeholders: [
                         { title: "Paste URL here", value: "https://mdblist.com/lists/linaspina/top-watched-movies-of-the-week" }
@@ -94,8 +94,6 @@ async function resolveListId(inputUrl) {
     }
 
     // Fallback: Use the slug from the URL.
-    // The API *might* accept the slug, or this simply fails later.
-    // But it's better than throwing immediately.
     try {
         // Remove query params
         const noQuery = trimmed.split('?')[0];
@@ -111,7 +109,7 @@ async function resolveListId(inputUrl) {
         }
 
         if (slug && slug !== "https:" && slug !== "http:") {
-            console.log(`Using slug as ID: ${slug}`);
+            console.log(`Could not find numeric ID, attempting to use slug: ${slug}`);
             return slug;
         }
     } catch (e2) {
@@ -137,8 +135,6 @@ async function fetchTmdbDetail(tmdbId, type, language) {
 }
 
 async function formatMdbData(listItems, language) {
-    // listItems from MDBList API: usually array of { title, year, medi_type, tmdb_id, ... }
-
     const validList = listItems.filter(item => item.tmdb_id);
 
     const enrichedItems = await Promise.all(validList.map(async (item) => {
@@ -195,7 +191,8 @@ async function fetchMdbList(params) {
 
     const limit = 20;
     const offset = (page - 1) * limit;
-    // Try passing the resolved ID (or slug) to API
+    // If parsing failed but we returned a slug, this API call might fail if MDBList requires numeric ID.
+    // But it's worth a try or the user will see the API error.
     const apiUrl = `https://api.mdblist.com/lists/${listId}/items?apikey=${apiKey}&limit=${limit}&offset=${offset}`;
 
     console.log(`Fetching MDBList: ${apiUrl}`);
@@ -214,7 +211,7 @@ async function fetchMdbList(params) {
 
             // If it's 404/400 often it returns error object or text.
             // If we used a slug and API refused, we land here.
-            throw new Error("Invalid response. If using a URL, the numeric ID might be required. Please find the ID (e.g. 12345) and enter it instead.");
+            throw new Error("Invalid response. If using a URL, the numeric ID might be required. Please find the ID (e.g. 198200) and enter it instead.");
         }
 
         return await formatMdbData(data, language);
