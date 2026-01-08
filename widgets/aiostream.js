@@ -34,16 +34,47 @@ WidgetMetadata = {
 };
 
 async function loadStremioStreams(params) {
-  const { imdbId, type, season, episode, addonUrl } = params;
+  const { type, season, episode, addonUrl } = params;
+  let { imdbId, tmdbId } = params;
+
+  console.log(`[StremioClient] Request Params:`, JSON.stringify(params));
 
   if (!addonUrl) {
     throw new Error("Addon URL is missing. Please configure it in the widget settings.");
   }
   
+  // --- 0. ID Resolution (TMDB -> IMDB) ---
+  // If we don't have an IMDb ID but have a TMDB ID, try to convert it.
+  if (!imdbId && tmdbId) {
+    console.log(`[StremioClient] Missing IMDb ID, attempting conversion from TMDB ID: ${tmdbId}`);
+    try {
+      // Use Widget.tmdb if available, otherwise fallback or fail
+      if (Widget.tmdb) {
+        const endpoint = type === 'tv' ? `tv/${tmdbId}/external_ids` : `movie/${tmdbId}/external_ids`;
+        const resp = await Widget.tmdb.get(endpoint);
+        if (resp && resp.imdb_id) {
+          imdbId = resp.imdb_id;
+          console.log(`[StremioClient] Converted TMDB ${tmdbId} -> IMDb ${imdbId}`);
+        } else {
+          console.warn(`[StremioClient] Could not find IMDb ID for TMDB ${tmdbId}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[StremioClient] Error converting TMDB to IMDb: ${e.message}`);
+    }
+  }
+
   if (!imdbId) {
-    // If there is no IMDB ID (e.g. only TMDB), Stremio addons usually fail.
-    // Forward usually provides IMDB ID if available.
-    console.warn("No IMDB ID provided. Stremio addons require IMDB IDs.");
+    console.warn("[StremioClient] No IMDB ID provided or found. Stremio addons require IMDB IDs.");
+    // Some addons might support TMDB IDs (e.g. tmdb:123), but standard Stremio protocol prefers IMDb.
+    // We will try with TMDB ID as a fallback if the addon supports it, but it's rare.
+    if (tmdbId) {
+       console.log("[StremioClient] Trying with TMDB ID prefix...");
+       // Common alias format for some addons: tmdb:123
+       // But typically Cinemeta (standard) only does IMDb.
+       // We'll return empty here to avoid invalid requests unless we want to try 'tmdb:123'
+       return [];
+    }
     return [];
   }
 
@@ -83,12 +114,19 @@ async function loadStremioStreams(params) {
     });
 
     const data = response.data;
+    console.log(`[StremioClient] Response Status: ${response.status}`);
 
     // Validation
     if (!data || !data.streams || !Array.isArray(data.streams)) {
       console.log("[StremioClient] No streams found or invalid response format.");
+      // Check if there is an error in the response
+      if (data && data.err) {
+          console.error(`[StremioClient] Addon Error: ${data.err}`);
+      }
       return [];
     }
+    
+    console.log(`[StremioClient] Found ${data.streams.length} streams.`);
 
     // --- 4. Mapping to Forward Format ---
     // Forward expects: { name, description, url }
@@ -98,7 +136,11 @@ async function loadStremioStreams(params) {
       .filter(stream => {
         // Filter out items that Forward can't play directly (like Magnet links without a Debrid resolver)
         // Since you are using AIOStream/Debrid, we expect 'url' to be present.
-        return stream.url && stream.url.startsWith('http');
+        if (!stream.url) {
+             console.log(`[StremioClient] Skipping stream '${stream.title}' (No URL, possibly magnet/torrent)`);
+             return false;
+        }
+        return stream.url.startsWith('http');
       })
       .map(stream => {
         // Construct a descriptive name
