@@ -74,7 +74,7 @@ async function fetchTrakt(endpoint, params, globalParams) {
     headers: {
       "Content-Type": "application/json",
       "trakt-api-version": "2",
-      "trakt-api-key": clientId
+      "trakt-api-key": 06b6df28ce91aafbbedb1452531ef1e18d3404777e6591eafba904b46cd4ca6e
     }
   };
 
