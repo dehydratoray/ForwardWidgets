@@ -45,10 +45,10 @@ const CATALOGS = [
     { id: "mdblist.91304", name: "Popular 2020s Movies", type: "movie", source: "stremio" }
 ];
 
-// Generate Individual Modules (Revert to 1-to-1)
+// Generate Modules
 const MODULES = CATALOGS.map(cat => {
     return {
-        id: `mod_${cat.id.replace(/\./g, '_')}`,
+        id: `mod_${cat.id.replace(/\./g, '_')}`, // Sanitize ID for module ID
         title: cat.name,
         functionName: "fetchList",
         sectionMode: false,
@@ -71,11 +71,11 @@ const MODULES = CATALOGS.map(cat => {
 });
 
 var WidgetMetadata = {
-    id: "forward.aio.merged", // Keep ID to overwrite existing installed widget if possible
-    title: "AIO Catalogs",
-    version: "4.0.0",
+    id: "forward.aio.stremio",
+    title: "AIO Catalogs (Stremio)",
+    version: "2.1.0",
     requiredVersion: "0.0.1",
-    description: "Browse individual curated lists from your Stremio Addon.",
+    description: "Browse curated lists from your AIO Stremio Addon.",
     author: "ForwardWidget User",
     site: "https://mdblist.com",
     modules: MODULES
@@ -91,69 +91,54 @@ function toISODate(v) {
     return s || "";
 }
 
-// Simple concurrency limiter
-async function pMap(array, mapper, concurrency) {
-    const results = [];
-    const chunks = [];
-    for (let i = 0; i < array.length; i += concurrency) {
-        chunks.push(array.slice(i, i + concurrency));
-    }
-    for (const chunk of chunks) {
-        const chunkResults = await Promise.all(chunk.map(mapper));
-        results.push(...chunkResults);
-    }
-    return results;
-}
-
-// --- API Helpers ---
+// --- Fetching Logic ---
 
 async function fetchTmdbDetail(externalId, type, language) {
     if (!externalId) return null;
     try {
         if (externalId.startsWith("tt")) {
-            const findPath = `find/${externalId}`; // Use 'find' for IMDb IDs
+            const findPath = `find/${externalId}`;
             const res = await Widget.tmdb.get(findPath, {
                 params: {
                     language: language,
                     external_source: "imdb_id"
                 }
             });
-            // Return the specific results object
             if (res) {
                 const results = (type === "movie") ? res.movie_results : res.tv_results;
                 if (results && results.length > 0) return results[0];
-                // If not found in primary type, check secondary just in case
                 const other = (type === "movie") ? res.tv_results : res.movie_results;
                 if (other && other.length > 0) return other[0];
             }
+            return null;
         }
         if (/^\d+$/.test(externalId)) {
             const path = `${type}/${externalId}`;
             const res = await Widget.tmdb.get(path, { params: { language: language } });
             return res;
         }
-    } catch (e) { return null; }
+    } catch (e) {
+        return null;
+    }
     return null;
 }
 
+// Reuse logic from stremio.js basically
 async function formatStremioItems(metas, reqType, language) {
-    // Limit total items to prevent overload
-    const limitedMetas = metas.slice(0, 40);
-
-    // Process in batches of 5 to respect rate limits
-    const enrichedItems = await pMap(limitedMetas, async (item) => {
+    const enrichedItems = await Promise.all(metas.map(async (item) => {
         const stremioId = item.id;
         const mediaType = item.type || reqType;
+
         const isMovie = (mediaType === "movie");
         const tmdbType = isMovie ? "movie" : "tv";
 
         let tmdbData = await fetchTmdbDetail(stremioId, tmdbType, language);
 
-        // Fallbacks
         const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.name);
         const overview = tmdbData ? tmdbData.overview : safeStr(item.description);
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : (item.poster || "");
         const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : (item.background || "");
+
         const rating = tmdbData ? tmdbData.vote_average : (item.imdbRating ? Number(item.imdbRating) : 0);
         const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : item.releaseInfo);
 
@@ -181,7 +166,7 @@ async function formatStremioItems(metas, reqType, language) {
             mediaType: tmdbType,
             genreTitle: ""
         };
-    }, 5); // Concurrency 5
+    }));
 
     return enrichedItems;
 }
@@ -201,13 +186,12 @@ async function formatTmdbItems(listItems, reqType, language) {
     }));
 }
 
-// --- Main Handler ---
+// --- Main Function ---
 
 async function fetchList(params) {
     const language = safeStr(params.language || "zh-CN");
     const catalogId = safeStr(params.catalogId);
 
-    // Find the catalog definition
     const cat = CATALOGS.find(c => c.id === catalogId);
     if (!cat) throw new Error("Catalog not found.");
 
@@ -218,7 +202,10 @@ async function fetchList(params) {
                 return await formatTmdbItems(res.results, cat.type === "movie" ? "movie" : "tv", language);
             }
         } else if (cat.source === "stremio") {
+            // URL: {BASE_URL}/catalog/{type}/{id}.json
             const url = `${STREMIO_BASE_URL}/catalog/${cat.type}/${cat.id}.json`;
+            console.log("Fetching Stremio AIO:", url);
+
             const res = await Widget.http.get(url);
             let data = res.data;
             if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { } }
