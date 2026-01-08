@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.mdblist.custom",
     title: "MDBList Custom",
-    version: "1.0.1",
+    version: "1.0.2",
     requiredVersion: "0.0.1",
     description: "Load custom lists from MDBList.com (requires API Key).",
     author: "ForwardWidget User",
@@ -14,9 +14,9 @@ var WidgetMetadata = {
             params: [
                 {
                     name: "url",
-                    title: "MDBList URL",
+                    title: "MDBList URL or ID",
                     type: "input",
-                    description: "e.g. https://mdblist.com/lists/user/my-list",
+                    description: "URL or numeric List ID (e.g. 12345)",
                     value: "",
                     placeholders: [
                         { title: "Paste URL here", value: "https://mdblist.com/lists/linaspina/top-watched-movies-of-the-week" }
@@ -64,57 +64,61 @@ async function resolveListId(inputUrl) {
         return trimmed;
     }
 
+    // Try scraping first (best effort)
     try {
         console.log("Resolving MDBList ID from URL: " + trimmed);
         const res = await Widget.http.get(trimmed, {
             headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             }
         });
 
         const html = res.data;
-        if (!html) throw new Error("Empty response from MDBList");
+        if (html) {
+            // Strategy 1: Next.js data
+            const nextJsMatch = html.match(/"list"\s*:\s*\{\s*"id"\s*:\s*(\d+)/i);
+            if (nextJsMatch && nextJsMatch[1]) return nextJsMatch[1];
 
-        // Strategy 1: Look for specific Next.js page data pattern
-        // "list":{"id":12345
-        const nextJsMatch = html.match(/"list"\s*:\s*\{\s*"id"\s*:\s*(\d+)/i);
-        if (nextJsMatch && nextJsMatch[1]) return nextJsMatch[1];
+            // Strategy 2: Generic
+            const idMatch = html.match(/"list_id"\s*:\s*(\d+)/i) ||
+                html.match(/data-list-id="(\d+)"/i) ||
+                html.match(/mdblist:list_id"\s+content="(\d+)"/i);
+            if (idMatch && idMatch[1]) return idMatch[1];
 
-        // Strategy 2: Look for generic list_id patterns
-        const idMatch = html.match(/"list_id"\s*:\s*(\d+)/i) ||
-            html.match(/data-list-id="(\d+)"/i) ||
-            html.match(/mdblist:list_id"\s+content="(\d+)"/i);
-
-        if (idMatch && idMatch[1]) {
-            return idMatch[1];
+            // Strategy 3: JSON-LD
+            const identifierMatch = html.match(/"identifier"\s*:\s*(\d+)/i);
+            if (identifierMatch && identifierMatch[1]) return identifierMatch[1];
         }
-
-        // Strategy 3: Look for JSON-LD or schema
-        // "url": "https://mdblist.com/lists/...", "identifier": 12345
-        const identifierMatch = html.match(/"identifier"\s*:\s*(\d+)/i);
-        if (identifierMatch && identifierMatch[1]) return identifierMatch[1];
-
-        console.log("Regex resolution failed. Trying to assume API accepts Slug or failing gracefully.");
-
     } catch (e) {
-        console.error("Resolve failed detail:", e);
+        console.log("Auto-resolve failed (likely protection). Falling back to slug.");
     }
 
-    // Fallback: Extract slug from URL and try that. 
-    // Format: .../lists/user/slug
+    // Fallback: Use the slug from the URL.
+    // The API *might* accept the slug, or this simply fails later.
+    // But it's better than throwing immediately.
     try {
-        const parts = trimmed.split('?')[0].split('/');
-        // remove empty trailing
-        const cleanParts = parts.filter(p => p.length > 0);
-        const slug = cleanParts[cleanParts.length - 1]; // last part
-
-        if (slug) {
-            console.log(`Could not find numeric ID, attempting to use slug: ${slug}`);
-            return slug; // Hope API accepts slug
+        // Remove query params
+        const noQuery = trimmed.split('?')[0];
+        // Split by slash
+        const parts = noQuery.split('/');
+        // Find last non-empty part
+        let slug = "";
+        for (let i = parts.length - 1; i >= 0; i--) {
+            if (parts[i] && parts[i].length > 0) {
+                slug = parts[i];
+                break;
+            }
         }
-    } catch (e2) { }
 
-    throw new Error("Could not find List ID in page HTML. Please enter the numeric List ID directly.");
+        if (slug && slug !== "https:" && slug !== "http:") {
+            console.log(`Using slug as ID: ${slug}`);
+            return slug;
+        }
+    } catch (e2) {
+        console.error("Slug extraction failed:", e2);
+    }
+
+    throw new Error("Could not find List ID. Please find the numeric ID (e.g. 12345) and enter it directly.");
 }
 
 
@@ -135,10 +139,8 @@ async function fetchTmdbDetail(tmdbId, type, language) {
 async function formatMdbData(listItems, language) {
     // listItems from MDBList API: usually array of { title, year, medi_type, tmdb_id, ... }
 
-    // Filter items that have TMDB ID
     const validList = listItems.filter(item => item.tmdb_id);
 
-    // Parallel Enrichment
     const enrichedItems = await Promise.all(validList.map(async (item) => {
         const tmdbId = item.tmdb_id;
         const mediaType = item.mediatype;
@@ -146,32 +148,23 @@ async function formatMdbData(listItems, language) {
         const isMovie = (mediaType === "movie");
         const typeStr = isMovie ? "movie" : "tv";
 
-        // Fetch TMDB
         let tmdbData = await fetchTmdbDetail(tmdbId, typeStr, language);
 
-        // Fallbacks if TMDB fails
         const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.title);
         const overview = tmdbData ? tmdbData.overview : "";
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
         const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
-
         const rating = tmdbData ? tmdbData.vote_average : (item.score_average ? Number(item.score_average) / 10 : 0);
-
         const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : item.release_date);
-
-        // ID Logic: Raw ID for Stream Playback
-        const uniqueId = tmdbId;
-        const itemType = "tmdb";
 
         let genreTitle = "";
         if (tmdbData && tmdbData.genres) {
             genreTitle = tmdbData.genres.map(g => g.name).join(", ");
         }
 
-        // Strict Schema matching tmdb.js
         return {
-            id: uniqueId,
-            type: itemType,
+            id: tmdbId, // Raw ID
+            type: "tmdb",
             title: title,
             description: overview,
             releaseDate: releaseDate,
@@ -202,11 +195,10 @@ async function fetchMdbList(params) {
 
     const limit = 20;
     const offset = (page - 1) * limit;
-    // If parsing failed but we returned a slug, this API call might fail if MDBList requires numeric ID.
-    // But it's worth a try or the user will see the API error.
+    // Try passing the resolved ID (or slug) to API
     const apiUrl = `https://api.mdblist.com/lists/${listId}/items?apikey=${apiKey}&limit=${limit}&offset=${offset}`;
 
-    console.log(`Fetching MDBList Id=${listId} Offset=${offset}...`);
+    console.log(`Fetching MDBList: ${apiUrl}`);
 
     try {
         const response = await Widget.http.get(apiUrl);
@@ -219,13 +211,16 @@ async function fetchMdbList(params) {
         if (!Array.isArray(data)) {
             console.error("MDBList Response:", data);
             if (data && data.error) throw new Error("MDBList API Error: " + data.error);
-            throw new Error("Invalid response from MDBList API.");
+
+            // If it's 404/400 often it returns error object or text.
+            // If we used a slug and API refused, we land here.
+            throw new Error("Invalid response. If using a URL, the numeric ID might be required. Please find the ID (e.g. 12345) and enter it instead.");
         }
 
         return await formatMdbData(data, language);
 
     } catch (error) {
-        console.error("MDBList widget failed:", error);
+        console.error("MDBList API call failed:", error);
         throw error;
     }
 }
