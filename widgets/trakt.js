@@ -1,4 +1,3 @@
-
 const TRAKT_API_URL = "https://api.trakt.tv";
 
 WidgetMetadata = {
@@ -10,21 +9,19 @@ WidgetMetadata = {
   author: "Forward",
   site: "https://trakt.tv",
   icon: "https://trakt.tv/assets/logos/header@2x-d6926a2c93734beeaf3c58f8776e31a6.png",
-  globalParams: [
-    {
-      name: "client_id",
-      title: "Client ID",
-      type: "input",
-      description: "Your Trakt API Client ID (from https://trakt.tv/oauth/applications)",
-      value: "", 
-    }
-  ],
   modules: [
     {
       id: "trending_movies",
       title: "Trending Movies",
       functionName: "getTrendingMovies",
       params: [
+        {
+          name: "client_id",
+          title: "Client ID",
+          type: "input",
+          description: "Your Trakt API Client ID",
+          value: ""
+        },
         { name: "page", title: "Page", type: "page" }
       ]
     },
@@ -33,6 +30,13 @@ WidgetMetadata = {
       title: "Popular Movies",
       functionName: "getPopularMovies",
       params: [
+        {
+          name: "client_id",
+          title: "Client ID",
+          type: "input",
+          description: "Your Trakt API Client ID",
+          value: ""
+        },
         { name: "page", title: "Page", type: "page" }
       ]
     },
@@ -41,6 +45,13 @@ WidgetMetadata = {
       title: "Trending Shows",
       functionName: "getTrendingShows",
       params: [
+        {
+          name: "client_id",
+          title: "Client ID",
+          type: "input",
+          description: "Your Trakt API Client ID",
+          value: ""
+        },
         { name: "page", title: "Page", type: "page" }
       ]
     },
@@ -49,6 +60,13 @@ WidgetMetadata = {
       title: "Popular Shows",
       functionName: "getPopularShows",
       params: [
+        {
+          name: "client_id",
+          title: "Client ID",
+          type: "input",
+          description: "Your Trakt API Client ID",
+          value: ""
+        },
         { name: "page", title: "Page", type: "page" }
       ]
     },
@@ -79,31 +97,15 @@ WidgetMetadata = {
 
 // --- Helper Functions ---
 
-async function getCustomList(params) {
-    const urlInput = params.url;
-    if (!urlInput) throw new Error("Please provide a Trakt List URL.");
-    
-    // Extract user and list name from URL
-    const match = urlInput.match(/users\/([^\/]+)\/lists\/([^\/]+)/);
-    if (!match) throw new Error("Invalid Trakt List URL. Must be in format: https://trakt.tv/users/{user}/lists/{slug}");
-    
-    const user = match[1];
-    const list = match[2];
-    const data = await fetchTrakt(`/users/${user}/lists/${list}/items`, params, params);
-    return mapTraktItemsToForward(data, "movie");
-}
-
-async function fetchTrakt(endpoint, params, globalParams) {
-  const clientId = globalParams.client_id;
+async function fetchTrakt(endpoint, params) {
+  const clientId = params.client_id;
   
   if (!clientId) {
-    throw new Error("Please configure your Trakt Client ID in the widget settings.");
+    throw new Error("Please provide your Trakt Client ID.");
   }
 
-  // Handle pagination
   const page = params.page || 1;
   const limit = 20;
-
   const url = `${TRAKT_API_URL}${endpoint}?page=${page}&limit=${limit}&extended=full`;
 
   const options = {
@@ -114,78 +116,58 @@ async function fetchTrakt(endpoint, params, globalParams) {
     }
   };
 
-  console.log(`[Trakt] Fetching: ${url}`);
   const response = await Widget.http.get(url, options);
-  
-  if (!response || !response.data) {
-    throw new Error("Failed to fetch data from Trakt.");
-  }
-
+  if (!response || !response.data) throw new Error("Failed to fetch data from Trakt.");
   return response.data;
 }
 
 function mapTraktItemsToForward(items, type) {
   return items.map(item => {
-    // Trending/Anticipated endpoints wrap the object in a 'movie' or 'show' property.
-    // Popular endpoints return the object directly.
     const data = item.movie || item.show || item;
-    
-    // Determine media type if not explicitly known (fallback)
     const mediaType = item.movie ? "movie" : (item.show ? "tv" : type);
-    
-    // We prefer the TMDB ID so the app can auto-load metadata/images
     const tmdbId = data.ids.tmdb;
-
-    if (!tmdbId) {
-        return null; // Skip items without TMDB ID
-    }
+    if (!tmdbId) return null;
 
     return {
-      id: `${mediaType}.${tmdbId}`, // Format accepted by some players or just simple ID if type is strictly 'tmdb'
-      // By setting type to 'tmdb', standard Forward clients will try to look up details using the ID.
-      // Usually Forward expects just the numeric ID for 'tmdb' type if mediaType is specified,
-      // but let's stick to the convention seen in other files or just pass the ID.
-      // Looking at tmdb.js: id: item.id (numeric), type: "tmdb", mediaType: "movie"|"tv".
       id: tmdbId, 
       type: "tmdb",
       title: data.title,
       description: data.overview,
       year: data.year,
       releaseDate: data.released || data.first_aired,
-      rating: data.rating, // Trakt rating (0-10)
+      rating: data.rating,
       mediaType: mediaType,
-      // Trakt doesn't always provide full image paths in list views without extra calls.
-      // By using type: 'tmdb' and a valid tmdbId, the App *should* attempt to fetch images itself 
-      // or we might need to rely on the app's cache. 
-      // If the app requires us to provide images, we would need to fetch them from TMDB or Fanart.tv 
-      // (which requires another key). For now, we rely on the ID linkage.
     };
   }).filter(Boolean);
 }
 
-// --- Exported Functions ---
-
 async function getTrendingMovies(params) {
-  // Access global params (like client_id) which are merged into params by the app usually,
-  // or we need to access them differently. 
-  // *Assumption*: The app merges global params into the `params` object passed to the function.
-  // If not, we might need a way to access global config. 
-  // Based on README: "params object as a parameter containing all configured parameter values."
-  const data = await fetchTrakt("/movies/trending", params, params); 
+  const data = await fetchTrakt("/movies/trending", params); 
   return mapTraktItemsToForward(data, "movie");
 }
 
 async function getPopularMovies(params) {
-  const data = await fetchTrakt("/movies/popular", params, params);
+  const data = await fetchTrakt("/movies/popular", params);
   return mapTraktItemsToForward(data, "movie");
 }
 
 async function getTrendingShows(params) {
-  const data = await fetchTrakt("/shows/trending", params, params);
+  const data = await fetchTrakt("/shows/trending", params);
   return mapTraktItemsToForward(data, "tv");
 }
 
 async function getPopularShows(params) {
-  const data = await fetchTrakt("/shows/popular", params, params);
+  const data = await fetchTrakt("/shows/popular", params);
   return mapTraktItemsToForward(data, "tv");
+}
+
+async function getCustomList(params) {
+    const urlInput = params.url;
+    if (!urlInput) throw new Error("Please provide a Trakt List URL.");
+    const match = urlInput.match(/users\/([^\/]+)\/lists\/([^\/]+)/);
+    if (!match) throw new Error("Invalid Trakt List URL.");
+    const user = match[1];
+    const list = match[2];
+    const data = await fetchTrakt(`/users/${user}/lists/${list}/items`, params);
+    return mapTraktItemsToForward(data, "movie");
 }
