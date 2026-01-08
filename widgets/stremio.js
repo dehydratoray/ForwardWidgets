@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.stremio.browser",
     title: "Stremio Addon Browser",
-    version: "1.1.0",
+    version: "1.1.1",
     requiredVersion: "0.0.1",
     description: "Browse content from any Stremio Addon (Catalog).",
     author: "ForwardWidget User",
@@ -11,7 +11,7 @@ var WidgetMetadata = {
             id: "browseAddon",
             title: "Browse Addon",
             functionName: "browseAddon",
-            sectionMode: true, // Enable Section Mode
+            sectionMode: true,
             params: [
                 {
                     name: "manifestUrl",
@@ -33,7 +33,6 @@ var WidgetMetadata = {
                         { title: "Series", value: "series" }
                     ]
                 },
-                // Removed Catalog ID override - in section mode we load all relevant catalogs
                 {
                     name: "language",
                     title: "Language",
@@ -90,7 +89,6 @@ async function fetchTmdbDetail(externalId, type, language) {
 }
 
 async function formatStremioData(listItems, reqType, language) {
-    // Parallel enrichment
     const enrichedItems = await Promise.all(listItems.map(async (item) => {
         const stremioId = item.id;
         const mediaType = item.type || reqType;
@@ -146,8 +144,11 @@ async function formatStremioData(listItems, reqType, language) {
 
 async function fetchCatalog(baseUrl, catalog, type, language) {
     // Url pattern: {baseUrl}/catalog/{type}/{id}.json
-    // We load first page only for section view
-    const catalogUrl = `${baseUrl}/catalog/${type}/${catalog.id}.json`;
+    const catalogId = catalog.id;
+    // Stremio type in URL: must match catalog.type, not requested type if they differ (but we filter so they should match)
+    const catalogType = catalog.type;
+
+    const catalogUrl = `${baseUrl}/catalog/${catalogType}/${catalogId}.json`;
     console.log(`Fetching Section: ${catalog.name} (${catalogUrl})`);
 
     try {
@@ -161,24 +162,20 @@ async function fetchCatalog(baseUrl, catalog, type, language) {
             return [];
         }
 
-        // Format items
-        const items = await formatStremioData(catData.metas, type, language);
-
-        // Return Section Object
         return {
             title: catalog.name || catalog.id,
-            items: items
+            items: await formatStremioData(catData.metas, type, language)
         };
 
     } catch (e) {
         console.error(`Failed to load catalog ${catalog.name}:`, e);
-        return null; // Skip this section on error
+        return null;
     }
 }
 
 async function browseAddon(params) {
     const manifestUrl = safeStr(params.manifestUrl).trim();
-    const type = safeStr(params.type || "movie");
+    const reqType = safeStr(params.type || "movie").trim(); // Clean input
     const language = safeStr(params.language || "zh-CN");
 
     if (!manifestUrl) throw new Error("Manifest URL is required.");
@@ -186,7 +183,6 @@ async function browseAddon(params) {
     console.log(`Fetching Manifest: ${manifestUrl}`);
 
     try {
-        // 1. Fetch Manifest
         const manifestRes = await Widget.http.get(manifestUrl);
         let manifest = manifestRes.data;
         if (typeof manifest === "string") {
@@ -197,25 +193,26 @@ async function browseAddon(params) {
             throw new Error("Invalid Manifest: No catalogs found.");
         }
 
-        // 2. Resolve Catalogs matching Type
-        const sectionCatalogs = manifest.catalogs.filter(c => c.type === type);
+        // Strict matching can fail if manifest has 'Movie' vs 'movie'.
+        // Normalize to lowercase for comparison.
+        const sectionCatalogs = manifest.catalogs.filter(c => {
+            return c.type && c.type.toLowerCase() === reqType.toLowerCase();
+        });
 
         if (sectionCatalogs.length === 0) {
-            throw new Error(`No catalogs found for type '${type}'.`);
+            // Debug message to see what was available
+            const available = manifest.catalogs.map(c => c.type).join(", ");
+            throw new Error(`No catalogs found for type '${reqType}'. Available: ${available}`);
         }
 
-        // Need Base URL
         let baseUrl = manifestUrl.replace("/manifest.json", "");
         if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
 
-        // 3. Fetch All Sections Parallel
         const results = await Promise.all(
-            sectionCatalogs.map(cat => fetchCatalog(baseUrl, cat, type, language))
+            sectionCatalogs.map(cat => fetchCatalog(baseUrl, cat, reqType, language)) // Use reqType for enrichment context
         );
 
-        // Filter out failed sections
         const sections = results.filter(s => s && s.items.length > 0);
-
         return sections;
 
     } catch (error) {
