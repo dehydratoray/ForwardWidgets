@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.introdb",
     title: "IntroDB (Skip Intro)",
-    version: "2.0.0",
+    version: "2.1.0",
     requiredVersion: "0.0.1",
     description: "Fetch crowdsourced intro timestamps for TV shows.",
     author: "ForwardWidget User",
@@ -56,49 +56,51 @@ async function getImdbIdFromTmdb(tmdbId, type) {
 async function searchDanmu(params) {
     const { title, tmdbId, season, episode } = params;
 
-    // We try to resolve IMDb ID here to pass it down, or just pass context.
-    // The player calls getCommentsById with the result of this? 
-    // Usually searchDanmu returns a list of "matches".
-
-    // Since IntroDB is automatic based on IDs, we just return a valid dummy match
-    // that carries the known IDs forward.
+    // We bind the TMDB ID as the 'bangumiId' (or animeId) so it gets passed to getComments
     return {
         animes: [
             {
-                "bangumiId": tmdbId, // Using TMDB ID as valid ID
+                "bangumiId": tmdbId,
                 "animeTitle": title,
-                "episodeId": `${season}-${episode}`, // Helper for context
+                "episodeId": `${season}-${episode}`,
             }
         ]
     };
 }
 
 async function getCommentsById(params) {
-    const { tmdbId, season, episode, segmentTime } = params;
+    // Robust ID extraction:
+    // 1. tmdbId: standard context
+    // 2. commentId: passed from search result (we put tmdbId there)
+    // 3. animeId: passed from search result (we put tmdbId there)
+    const tmdbId = params.tmdbId || params.commentId || params.animeId;
+    const { season, episode, segmentTime } = params;
 
-    // Check local storage first
-    let cached = Widget.storage.get(tmdbId);
-    // Keys in storage usually need to be specific to season/episode for a show
+    if (!tmdbId) {
+        console.log("IntroDB: No valid ID found (tmdbId/commentId/animeId missing)");
+        return null;
+    }
+
+    // Check local storage 
     const storageKey = `intro_${tmdbId}_${season}_${episode}`;
-    cached = Widget.storage.get(storageKey);
+    const cached = Widget.storage.get(storageKey);
 
     if (cached) {
         return cached;
     }
 
     // --- ID Resolution ---
-    let imdbId = safeStr(params.imdbId || params.imdb_id); // If passed
+    let imdbId = safeStr(params.imdbId || params.imdb_id);
     const s = parseInt(season, 10);
     const e = parseInt(episode, 10);
 
     if ((!imdbId || !imdbId.startsWith("tt")) && tmdbId) {
-        // Try resolve
         const resolved = await getImdbIdFromTmdb(tmdbId, "tv");
         if (resolved) imdbId = resolved;
     }
 
     if (!imdbId || !imdbId.startsWith("tt")) {
-        console.log("IntroDB: No IMDb ID");
+        console.log("IntroDB: No IMDb ID resolving possible.");
         return null;
     }
 
@@ -118,14 +120,13 @@ async function getCommentsById(params) {
         const start = json.start_ms / 1000;
         const end = json.end_ms / 1000;
 
-        // Construct the "Skip" danmu object
-        // The standard usually expects an array of comments or specialized objects.
-        // For "skip", we tend to follow the known schema.
+        // Return standard Skip Intro Object
+        // Using 'type: skip' as standard.
         const skipData = [{
             start: start,
             end: end,
             text: "Skip Intro",
-            style: "skip" // Custom style hint
+            type: "skip"
         }];
 
         // Cache it
@@ -134,19 +135,22 @@ async function getCommentsById(params) {
         return skipData;
 
     } catch (e) {
-        console.error(e);
+        console.error("IntroDB Fetch Error:", e);
         return null;
     }
 }
 
 async function getDanmuWithSegmentTime(params) {
-    // This function is often used for lazy loading or seeking.
-    // Since we've already fetched just the 1 intro item, we likely just return from cache.
-    const { tmdbId, season, episode, segmentTime } = params;
-    const storageKey = `intro_${tmdbId}_${season}_${episode}`;
+    const { tmdbId, season, episode } = params;
+    // We need logic to recover the ID if it's missing (similar to above), 
+    // but usually segment time calls happen after getComments, so cache might work?
+    // If not, we can't do much without context.
 
-    // Simple logic: if we have the intro data, we return it. 
-    // Real "segmenting" for thousands of comments isn't needed for 1 Skip button.
+    // Attempt to match key pattern if tmdbId is missing (risky if multiple shows cached)
+    // But ideally params has tmdbId here.
+    if (!tmdbId) return null;
+
+    const storageKey = `intro_${tmdbId}_${season}_${episode}`;
     const data = Widget.storage.get(storageKey);
     return data || null;
 }
