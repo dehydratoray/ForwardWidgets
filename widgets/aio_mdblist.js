@@ -3,32 +3,38 @@
 const STREMIO_BASE_URL = "https://aiometadatafortheweak.nhyira.dev/stremio/7e79368f-22da-4379-8291-45702e84bec7";
 
 const CATALOGS = [
-    { id: "tmdb.trending.movie", name: "TMDB Trending Movies", type: "movie", source: "tmdb", path: "trending/movie/day" },
-    { id: "tmdb.trending.tv", name: "TMDB Trending Shows", type: "series", source: "tmdb", path: "trending/tv/day" },
+    { id: "tmdb.trending.movie", name: "Movies", type: "movie", source: "tmdb", path: "trending/movie/day" },
+    { id: "tmdb.trending.tv", name: "Shows", type: "series", source: "tmdb", path: "trending/tv/day" },
 
-    // MDBList Catalogs (via Stremio Addon)
-    // Note: Stremio config uses 'mdblist.ID' as the ID in the URL usually, or just ID if defined as such.
-    // The user's config showed IDs like "mdblist.86626".
-    // We will assume the Stremio Addon expects "mdblist.86626" as the catalog ID in the URL.
-    { id: "mdblist.86626", name: "Top Movies - Apple TV+", type: "movie", source: "stremio" },
-    { id: "mdblist.86625", name: "Top TV Shows - Apple TV+", type: "series", source: "stremio" },
-    { id: "mdblist.4799", name: "Discovery+", type: "series", source: "stremio" },
-    { id: "mdblist.86945", name: "Top Movies - Disney+", type: "movie", source: "stremio" },
-    { id: "mdblist.86946", name: "Top TV Shows - Disney+", type: "series", source: "stremio" },
-    { id: "mdblist.89392", name: "Top Movies - HBO Max", type: "movie", source: "stremio" },
-    { id: "mdblist.89310", name: "Top TV Shows - HBO Max", type: "series", source: "stremio" },
-    { id: "mdblist.88326", name: "Hulu Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.88327", name: "Hulu Shows", type: "series", source: "stremio" },
-    { id: "mdblist.86628", name: "Top Movies - Netflix", type: "movie", source: "stremio" },
-    { id: "mdblist.86620", name: "Top TV Shows - Netflix", type: "series", source: "stremio" },
-    { id: "mdblist.89366", name: "Top Movies - Paramount+", type: "movie", source: "stremio" },
-    { id: "mdblist.89374", name: "Top TV Shows - Paramount+", type: "series", source: "stremio" },
-    { id: "mdblist.83487", name: "Peacock Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.83484", name: "Peacock Shows", type: "series", source: "stremio" },
-    { id: "mdblist.86755", name: "Amazon Prime Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.86753", name: "Amazon Prime Shows", type: "series", source: "stremio" },
-    { id: "mdblist.87667", name: "Trakt Trending Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.88434", name: "Trakt Trending Shows", type: "series", source: "stremio" },
+    // MDBList Catalogs
+    { id: "mdblist.86626", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.86625", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.4799", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.86945", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.86946", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.89392", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.89310", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.88326", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.88327", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.86628", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.86620", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.89366", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.89374", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.83487", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.83484", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.86755", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.86753", name: "Shows", type: "series", source: "stremio" },
+
+    { id: "mdblist.87667", name: "Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.88434", name: "Shows", type: "series", source: "stremio" },
 
     // Genres
     { id: "mdblist.91211", name: "Action Movies", type: "movie", source: "stremio" },
@@ -41,20 +47,39 @@ const CATALOGS = [
     // Universes
     { id: "mdblist.3022", name: "Marvel Universe", type: "movie", source: "stremio" },
     { id: "mdblist.3021", name: "DC Universe", type: "movie", source: "stremio" },
-    { id: "mdblist.125115", name: "Star Wars Universe", type: "series", source: "stremio" },
-    { id: "mdblist.105063", name: "Harry Potter", type: "series", source: "stremio" },
-
-    // Eras
-    { id: "mdblist.91304", name: "Popular 2020s Movies", type: "movie", source: "stremio" }
+    // Etc..
+    { id: "mdblist.91304", name: "Popular 2020s", type: "movie", source: "stremio" }
 ];
 
-// Generate Modules
-const MODULES = CATALOGS.map(cat => {
+// Define Groups manually to ensure logic is perfect
+const GROUPS = [
+    { title: "TMDB Trending", ids: ["tmdb.trending.movie", "tmdb.trending.tv"] },
+    { title: "Apple TV+", ids: ["mdblist.86626", "mdblist.86625"] },
+    { title: "Disney+", ids: ["mdblist.86945", "mdblist.86946"] },
+    { title: "HBO Max", ids: ["mdblist.89392", "mdblist.89310"] },
+    { title: "Netflix", ids: ["mdblist.86628", "mdblist.86620"] },
+    { title: "Amazon Prime", ids: ["mdblist.86755", "mdblist.86753"] },
+    { title: "Hulu", ids: ["mdblist.88326", "mdblist.88327"] },
+    { title: "Paramount+", ids: ["mdblist.89366", "mdblist.89374"] },
+    { title: "Peacock", ids: ["mdblist.83487", "mdblist.83484"] },
+    { title: "Trakt Trending", ids: ["mdblist.87667", "mdblist.88434"] },
+    { title: "Discovery+", ids: ["mdblist.4799"] },
+    { title: "Action", ids: ["mdblist.91211", "mdblist.91213"] },
+    { title: "Comedy", ids: ["mdblist.91223"] },
+    { title: "Animation", ids: ["mdblist.116037"] },
+    { title: "Horror", ids: ["mdblist.91215"] },
+    { title: "Sci-Fi", ids: ["mdblist.91221"] },
+    { title: "Universes", ids: ["mdblist.3022", "mdblist.3021"] },
+    { title: "Decades", ids: ["mdblist.91304"] }
+];
+
+// Generate Modules from Groups
+const MODULES = GROUPS.map(g => {
     return {
-        id: `mod_${cat.id.replace(/\./g, '_')}`, // Sanitize ID for module ID
-        title: cat.name,
-        functionName: "fetchList",
-        sectionMode: false,
+        id: `group_${g.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        title: g.title,
+        functionName: "fetchGroup",
+        sectionMode: true, // Key feature!
         params: [
             {
                 name: "language",
@@ -63,10 +88,10 @@ const MODULES = CATALOGS.map(cat => {
                 value: "zh-CN"
             },
             {
-                name: "catalogId",
-                title: "Internal ID",
+                name: "catalogIds",
+                title: "IDs",
                 type: "constant",
-                value: cat.id,
+                value: g.ids.join(","), // Pass comma-separated IDs
                 hidden: true
             }
         ]
@@ -74,11 +99,11 @@ const MODULES = CATALOGS.map(cat => {
 });
 
 var WidgetMetadata = {
-    id: "forward.aio.stremio",
-    title: "AIO Catalogs (Stremio)",
-    version: "2.1.0",
+    id: "forward.aio.merged",
+    title: "AIO Merged Catalogs",
+    version: "3.0.0",
     requiredVersion: "0.0.1",
-    description: "Browse curated lists from your AIO Stremio Addon.",
+    description: "Merged widgets (Movies + Series) from Stremio.",
     author: "ForwardWidget User",
     site: "https://mdblist.com",
     modules: MODULES
@@ -94,7 +119,7 @@ function toISODate(v) {
     return s || "";
 }
 
-// --- Fetching Logic ---
+// --- API Helpers ---
 
 async function fetchTmdbDetail(externalId, type, language) {
     if (!externalId) return null;
@@ -110,28 +135,21 @@ async function fetchTmdbDetail(externalId, type, language) {
             if (res) {
                 const results = (type === "movie") ? res.movie_results : res.tv_results;
                 if (results && results.length > 0) return results[0];
-                const other = (type === "movie") ? res.tv_results : res.movie_results;
-                if (other && other.length > 0) return other[0];
             }
-            return null;
         }
         if (/^\d+$/.test(externalId)) {
             const path = `${type}/${externalId}`;
             const res = await Widget.tmdb.get(path, { params: { language: language } });
             return res;
         }
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
     return null;
 }
 
-// Reuse logic from stremio.js basically
 async function formatStremioItems(metas, reqType, language) {
     const enrichedItems = await Promise.all(metas.map(async (item) => {
         const stremioId = item.id;
         const mediaType = item.type || reqType;
-
         const isMovie = (mediaType === "movie");
         const tmdbType = isMovie ? "movie" : "tv";
 
@@ -141,7 +159,6 @@ async function formatStremioItems(metas, reqType, language) {
         const overview = tmdbData ? tmdbData.overview : safeStr(item.description);
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : (item.poster || "");
         const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : (item.background || "");
-
         const rating = tmdbData ? tmdbData.vote_average : (item.imdbRating ? Number(item.imdbRating) : 0);
         const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : item.releaseInfo);
 
@@ -189,37 +206,44 @@ async function formatTmdbItems(listItems, reqType, language) {
     }));
 }
 
-// --- Main Function ---
-
-async function fetchList(params) {
-    const language = safeStr(params.language || "zh-CN");
-    const catalogId = safeStr(params.catalogId);
-
-    const cat = CATALOGS.find(c => c.id === catalogId);
-    if (!cat) throw new Error("Catalog not found.");
+async function fetchSingleCatalog(catId, language) {
+    const cat = CATALOGS.find(c => c.id === catId);
+    if (!cat) return null;
 
     try {
         if (cat.source === "tmdb") {
             const res = await Widget.tmdb.get(cat.path, { params: { language: language } });
             if (res && res.results) {
-                return await formatTmdbItems(res.results, cat.type === "movie" ? "movie" : "tv", language);
+                const items = await formatTmdbItems(res.results, cat.type === "movie" ? "movie" : "tv", language);
+                return { title: cat.name, items };
             }
         } else if (cat.source === "stremio") {
-            // URL: {BASE_URL}/catalog/{type}/{id}.json
             const url = `${STREMIO_BASE_URL}/catalog/${cat.type}/${cat.id}.json`;
-            console.log("Fetching Stremio AIO:", url);
-
             const res = await Widget.http.get(url);
             let data = res.data;
             if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { } }
 
             if (data && Array.isArray(data.metas)) {
-                return await formatStremioItems(data.metas, cat.type, language);
+                const items = await formatStremioItems(data.metas, cat.type, language);
+                return { title: cat.name, items };
             }
         }
     } catch (e) {
         console.error(`Failed to fetch ${cat.name}:`, e);
-        throw e;
     }
-    return [];
+    return null;
+}
+
+// --- Main Handler ---
+
+async function fetchGroup(params) {
+    const language = safeStr(params.language || "zh-CN");
+    const ids = safeStr(params.catalogIds).split(",").filter(x => x);
+
+    // Fetch all catalogs in the group in parallel
+    const results = await Promise.all(ids.map(id => fetchSingleCatalog(id, language)));
+
+    // Filter out failed fetches
+    const sections = results.filter(s => s && s.items.length > 0);
+    return sections;
 }
