@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.trakt.trending",
     title: "Trakt Trending",
-    version: "1.3.0",
+    version: "1.4.0",
     requiredVersion: "0.0.1",
     description: "Browse trending movies/shows from Trakt (enriched with TMDB).",
     author: "ForwardWidget User",
@@ -81,7 +81,6 @@ function buildTraktHeaders(clientId) {
 
 // --- Data Fetching & Formatting ---
 
-// Fetch single item details via native Widget.tmdb proxy
 async function fetchTmdbDetail(tmdbId, type, language) {
     if (!tmdbId) return null;
     try {
@@ -90,40 +89,34 @@ async function fetchTmdbDetail(tmdbId, type, language) {
         return res;
     } catch (e) {
         console.log(`TMDB fetch failed for ${type}/${tmdbId}: ${e.message}`);
-        return null; // Fail gracefully
+        return null;
     }
 }
 
 async function formatTraktData(list, type, language) {
     const isMovie = (type === "movies");
 
-    // 1. Filter valid items from Trakt
     const validList = list.filter(item => {
         const obj = isMovie ? item.movie : item.show;
         return obj && obj.title && obj.ids;
     });
 
-    // 2. Prepare items and fetch TMDB details in parallel
-    // Note: Fetching 20 items in parallel is usually fine for these widgets.
     const enrichedItems = await Promise.all(validList.map(async (item) => {
         const obj = isMovie ? item.movie : item.show;
         const tmdbId = obj.ids.tmdb;
 
         let tmdbData = null;
         if (tmdbId) {
-            // Use the native proxy to get details (including images)
             tmdbData = await fetchTmdbDetail(tmdbId, isMovie ? "movie" : "tv", language);
         }
 
         // Merge Data
         const isTv = !isMovie;
 
-        // Prefer TMDB data (localized, with images)
         const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(obj.title);
         const originalTitle = tmdbData ? (tmdbData.original_title || tmdbData.original_name) : safeStr(obj.title);
         const overview = tmdbData ? tmdbData.overview : safeStr(obj.overview);
 
-        // Images (TMDB returns partial paths like /abc.jpg)
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
         const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
 
@@ -132,12 +125,14 @@ async function formatTraktData(list, type, language) {
 
         const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : (obj.released || obj.first_aired));
 
-        // Construct unique ID for Forward
-        // README: For tmdb id, it needs to be composed of type.id
+        // ID Logic:
+        // Works: tmdb.js returns raw ID (e.g. 12345) and type "tmdb".
+        // Broken: prefixing "movie.12345".
         let uniqueId = "";
         let itemType = "tmdb";
+
         if (tmdbId) {
-            uniqueId = (isTv ? "tv." : "movie.") + tmdbId;
+            uniqueId = tmdbId; // Raw ID
             itemType = "tmdb";
         } else if (obj.ids.imdb) {
             uniqueId = obj.ids.imdb;
@@ -161,7 +156,6 @@ async function formatTraktData(list, type, language) {
             voteCount: voteCount
         };
 
-        // Genres: Use TMDB's detailed genre list if available
         if (tmdbData && tmdbData.genres) {
             tmdbInfo.genreTitle = tmdbData.genres.map(g => g.name).join(", ");
         } else if (Array.isArray(obj.genres)) {
@@ -182,6 +176,8 @@ async function formatTraktData(list, type, language) {
             genreTitle: tmdbInfo.genreTitle,
             tmdbInfo: tmdbInfo,
             year: obj.year ? String(obj.year) : "",
+            // Extra metadata that might help Stremio/plugins
+            imdbId: obj.ids.imdb || "",
             countries: tmdbData && tmdbData.production_countries ? tmdbData.production_countries.map(c => c.name) : [],
             directors: [],
             actors: [],
@@ -207,9 +203,7 @@ async function fetchTraktTrending(type, params) {
         throw new Error("Trakt Client ID is required.");
     }
 
-    // Fetch list from Trakt
-    // Trakt API: ?page=1&limit=20
-    const limit = 20; // Default limit
+    const limit = 20;
     const url = `https://api.trakt.tv/${type}/trending?extended=full&limit=${limit}&page=${page}`;
 
     console.log(`Fetching from Trakt (${type}) Page ${page}...`);
@@ -226,7 +220,6 @@ async function fetchTraktTrending(type, params) {
         const list = (typeof data === "string") ? JSON.parse(data) : data;
 
         if (!Array.isArray(list)) {
-            // If page is out of range, Trakt might return empty array which is fine.
             console.error("Invalid Trakt response format");
             return [];
         }
