@@ -1,37 +1,27 @@
 var WidgetMetadata = {
-    id: "forward.kids.corner",
-    title: "Kids Corner",
+    id: "forward.hidden.gems",
+    title: "Hidden Gems",
     version: "1.0.0",
     requiredVersion: "0.0.1",
-    description: "Safe and fun movies for the family.",
+    description: "Discover highly-rated but less popular movies.",
     author: "ForwardWidget User",
     site: "https://themoviedb.org",
     modules: [
         {
-            id: "popularKids", title: "Popular Family Movies", functionName: "fetchKids", params: [
-                { name: "mode", type: "constant", value: "genre", hidden: true },
+            id: "indieDarlings", title: "Indie Darlings", functionName: "fetchGems", params: [
+                { name: "mode", type: "constant", value: "indie", hidden: true },
                 { name: "language", title: "Language", type: "language", value: "zh-CN" }
             ]
         },
         {
-            id: "disneyAnim", title: "Disney Animation", functionName: "fetchKids", params: [
-                { name: "mode", type: "constant", value: "company", hidden: true },
-                { name: "targetId", type: "constant", value: "2", hidden: true }, // Walt Disney Pictures (broad, but usually safe)
-                // Better: Walt Disney Animation Studios (6125)
+            id: "cultClassics", title: "Cult Classics", functionName: "fetchGems", params: [
+                { name: "mode", type: "constant", value: "cult", hidden: true },
                 { name: "language", title: "Language", type: "language", value: "zh-CN" }
             ]
         },
         {
-            id: "dreamworks", title: "DreamWorks Animation", functionName: "fetchKids", params: [
-                { name: "mode", type: "constant", value: "company", hidden: true },
-                { name: "targetId", type: "constant", value: "521", hidden: true },
-                { name: "language", title: "Language", type: "language", value: "zh-CN" }
-            ]
-        },
-        {
-            id: "illumination", title: "Illumination (Minions)", functionName: "fetchKids", params: [
-                { name: "mode", type: "constant", value: "company", hidden: true },
-                { name: "targetId", type: "constant", value: "6704", hidden: true },
+            id: "criticallyAcclaimed", title: "Critically Acclaimed", functionName: "fetchGems", params: [
+                { name: "mode", type: "constant", value: "acclaimed", hidden: true },
                 { name: "language", title: "Language", type: "language", value: "zh-CN" }
             ]
         }
@@ -58,22 +48,33 @@ async function formatTmdbItems(listItems, reqType) {
 
 // --- Main Logic ---
 
-async function fetchKids(params) {
+async function fetchGems(params) {
     const language = safeStr(params.language || "zh-CN");
     const mode = safeStr(params.mode);
-    const targetId = safeStr(params.targetId);
 
     try {
         const url = `discover/movie`;
         const query = {
             language: language,
-            sort_by: "popularity.desc",
-            with_genres: "16,10751", // Animation AND Family (Strict)
-            "vote_average.gte": "6.0" // Decent quality
+            sort_by: "vote_average.desc", // Sort by quality
+            "vote_average.gte": "7.0",
+            "vote_count.gte": "200", // Minimum credibility
+            page: 1
         };
 
-        if (mode === "company") {
-            query.with_companies = targetId;
+        if (mode === "indie") {
+            // Highly rated, low popularity
+            query["vote_average.gte"] = "7.5";
+            query["vote_count.lte"] = "3000"; // Cap popularity
+        } else if (mode === "cult") {
+            // Older, highly rated, medium popularity
+            query["primary_release_date.lte"] = "2010-01-01";
+            query["vote_average.gte"] = "7.2";
+            query["vote_count.lte"] = "5000";
+        } else if (mode === "acclaimed") {
+            // Just pure high score, ignore popularity cap
+            query["vote_average.gte"] = "8.0";
+            query["vote_count.gte"] = "500";
         }
 
         const res = await Widget.tmdb.get(url, { params: query });
@@ -82,7 +83,7 @@ async function fetchKids(params) {
             return await formatTmdbItems(res.results, "movie");
         }
     } catch (e) {
-        console.error("Kids Corner Error", e);
+        console.error("Hidden Gems Error", e);
     }
     return [];
 }
