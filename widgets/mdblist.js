@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.mdblist.custom",
     title: "MDBList Custom",
-    version: "1.0.0",
+    version: "1.0.1",
     requiredVersion: "0.0.1",
     description: "Load custom lists from MDBList.com (requires API Key).",
     author: "ForwardWidget User",
@@ -57,20 +57,6 @@ function toISODate(v) {
 }
 
 // Helper to extract List ID/Slug from URL
-// URL format: https://mdblist.com/lists/{user}/{slug}
-// API expects {id} which is the numeric ID... actually usually scraping is needed to find ID from slug if API doesn't support slug.
-// BUT typically third party APIs for these sites might accept the numeric ID.
-// Let's try to assume the API might need the numeric ID.
-// If the user pastes a URL, we might need to resolve it?
-// Research indicates MDBList API `/lists/{id}` usually wants the numeric ID.
-// However, finding the numeric ID from the URL is hard without scraping the HTML first.
-// I will implement a "Resolve" step: 
-// 1. If input looks like a number, use it.
-// 2. If input is a URL, fetch the HTML of that URL to find the `list_id` or similar metadata.
-//    Usually meta tag: <meta property="mdblist:list_id" content="12345" /> or similar. 
-//    Or JSON-LD?
-// Let's add a robust resolver.
-
 async function resolveListId(inputUrl) {
     const trimmed = inputUrl.trim();
     // If it's just digits, assume it's the ID
@@ -78,7 +64,6 @@ async function resolveListId(inputUrl) {
         return trimmed;
     }
 
-    // Otherwise, fetch the page to find the ID
     try {
         console.log("Resolving MDBList ID from URL: " + trimmed);
         const res = await Widget.http.get(trimmed, {
@@ -90,34 +75,46 @@ async function resolveListId(inputUrl) {
         const html = res.data;
         if (!html) throw new Error("Empty response from MDBList");
 
-        // Try regex for ID. Common patterns in these sites:
-        // "id": 12345
-        // list_id = 12345
-        // /lists/12345/items
+        // Strategy 1: Look for specific Next.js page data pattern
+        // "list":{"id":12345
+        const nextJsMatch = html.match(/"list"\s*:\s*\{\s*"id"\s*:\s*(\d+)/i);
+        if (nextJsMatch && nextJsMatch[1]) return nextJsMatch[1];
 
-        // MDBList HTML usually contains JSON data or meta tags.
-        // Let's try a few regexes.
-
-        // 1. Look for canonical link or similar with numeric ID? No, URLs are slugs.
-        // 2. Look for JSON state?
-        // 3. Look for "id":\s*(\d+) inside some context.
-
-        // Let's try to find the "list_id": 12345 pattern which often appears in JS objects.
-        const idMatch = html.match(/"list_id"\s*:\s*(\d+)/i) || html.match(/data-list-id="(\d+)"/i);
+        // Strategy 2: Look for generic list_id patterns
+        const idMatch = html.match(/"list_id"\s*:\s*(\d+)/i) ||
+            html.match(/data-list-id="(\d+)"/i) ||
+            html.match(/mdblist:list_id"\s+content="(\d+)"/i);
 
         if (idMatch && idMatch[1]) {
             return idMatch[1];
         }
 
-        throw new Error("Could not find List ID in page HTML. Please enter the numeric List ID directly.");
+        // Strategy 3: Look for JSON-LD or schema
+        // "url": "https://mdblist.com/lists/...", "identifier": 12345
+        const identifierMatch = html.match(/"identifier"\s*:\s*(\d+)/i);
+        if (identifierMatch && identifierMatch[1]) return identifierMatch[1];
+
+        console.log("Regex resolution failed. Trying to assume API accepts Slug or failing gracefully.");
 
     } catch (e) {
-        console.error("Resolve failed:", e);
-        // Fallback: extracts last path segment if it looks like regex, but that's a slug.
-        // If API supports slug, great. If not, this will fail.
-        // I'll return the numeric extraction attempt or fail.
-        throw e;
+        console.error("Resolve failed detail:", e);
     }
+
+    // Fallback: Extract slug from URL and try that. 
+    // Format: .../lists/user/slug
+    try {
+        const parts = trimmed.split('?')[0].split('/');
+        // remove empty trailing
+        const cleanParts = parts.filter(p => p.length > 0);
+        const slug = cleanParts[cleanParts.length - 1]; // last part
+
+        if (slug) {
+            console.log(`Could not find numeric ID, attempting to use slug: ${slug}`);
+            return slug; // Hope API accepts slug
+        }
+    } catch (e2) { }
+
+    throw new Error("Could not find List ID in page HTML. Please enter the numeric List ID directly.");
 }
 
 
@@ -144,9 +141,8 @@ async function formatMdbData(listItems, language) {
     // Parallel Enrichment
     const enrichedItems = await Promise.all(validList.map(async (item) => {
         const tmdbId = item.tmdb_id;
-        const mediaType = item.mediatype; // 'movie' or 'show'/'tv'? Check API response keys.
+        const mediaType = item.mediatype;
 
-        // MDBList usually returns 'movie' or 'show'.
         const isMovie = (mediaType === "movie");
         const typeStr = isMovie ? "movie" : "tv";
 
@@ -155,7 +151,7 @@ async function formatMdbData(listItems, language) {
 
         // Fallbacks if TMDB fails
         const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.title);
-        const overview = tmdbData ? tmdbData.overview : ""; // MDBList might not give overview in list view
+        const overview = tmdbData ? tmdbData.overview : "";
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
         const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
 
@@ -172,7 +168,7 @@ async function formatMdbData(listItems, language) {
             genreTitle = tmdbData.genres.map(g => g.name).join(", ");
         }
 
-        // Strict Schema
+        // Strict Schema matching tmdb.js
         return {
             id: uniqueId,
             type: itemType,
@@ -201,24 +197,19 @@ async function fetchMdbList(params) {
     if (!urlOrId) throw new Error("URL is required.");
     if (!apiKey) throw new Error("MDBList API Key is required.");
 
-    // 1. Resolve ID if needed (only on first page or cache resolution? Widget is stateless mostly)
-    // We have to resolve every time unless we passed ID. 
     const listId = await resolveListId(urlOrId);
     console.log(`Using List ID: ${listId}`);
 
-    // 2. Fetch List Items
-    // Endpoint: https://api.mdblist.com/lists/{id}/items?limit=20&offset=...
     const limit = 20;
     const offset = (page - 1) * limit;
-    // sort=rank is default
+    // If parsing failed but we returned a slug, this API call might fail if MDBList requires numeric ID.
+    // But it's worth a try or the user will see the API error.
     const apiUrl = `https://api.mdblist.com/lists/${listId}/items?apikey=${apiKey}&limit=${limit}&offset=${offset}`;
 
     console.log(`Fetching MDBList Id=${listId} Offset=${offset}...`);
 
     try {
         const response = await Widget.http.get(apiUrl);
-        // Response is usually array directly? Or { uniqueid, ... }?
-        // MDBList API docs say "Returns an array of items".
 
         let data = response && response.data;
         if (typeof data === "string") {
@@ -226,7 +217,6 @@ async function fetchMdbList(params) {
         }
 
         if (!Array.isArray(data)) {
-            // Did we get error object?
             console.error("MDBList Response:", data);
             if (data && data.error) throw new Error("MDBList API Error: " + data.error);
             throw new Error("Invalid response from MDBList API.");
