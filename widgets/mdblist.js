@@ -10,7 +10,7 @@ WidgetMetadata = {
   author: "Forward",
   site: "https://mdblist.com",
   icon: "https://mdblist.com/assets/img/logo_square.png",
-  params: [
+  globalParams: [
     {
       name: "api_key",
       title: "API Key",
