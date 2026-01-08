@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.trakt.trending",
     title: "Trakt Trending",
-    version: "1.2.0",
+    version: "1.3.0",
     requiredVersion: "0.0.1",
     description: "Browse trending movies/shows from Trakt (enriched with TMDB).",
     author: "ForwardWidget User",
@@ -24,6 +24,11 @@ var WidgetMetadata = {
                     title: "Language",
                     type: "language",
                     value: "zh-CN"
+                },
+                {
+                    name: "page",
+                    title: "Page",
+                    type: "page"
                 }
             ]
         },
@@ -44,6 +49,11 @@ var WidgetMetadata = {
                     title: "Language",
                     type: "language",
                     value: "zh-CN"
+                },
+                {
+                    name: "page",
+                    title: "Page",
+                    type: "page"
                 }
             ]
         }
@@ -71,24 +81,16 @@ function buildTraktHeaders(clientId) {
 
 // --- Data Fetching & Formatting ---
 
-// New: Helper to fetch single item details via native Widget.tmdb proxy
+// Fetch single item details via native Widget.tmdb proxy
 async function fetchTmdbDetail(tmdbId, type, language) {
     if (!tmdbId) return null;
     try {
-        // e.g. movie/123 or tv/456
         const path = `${type}/${tmdbId}`;
         const res = await Widget.tmdb.get(path, { params: { language: language } });
-        // response structure of Widget.tmdb.get often mirrors axios: { data: ... } or direct data?
-        // In the user's example: 
-        // const response = await Widget.tmdb.get(api, { params: params });
-        // const data = response.results;
-        // So it likely returns an object where .results is the list for lists, 
-        // OR the full object for details. 
-        // Based on standard axios/http patterns in these widgets, response is the wrapper.
         return res;
     } catch (e) {
         console.log(`TMDB fetch failed for ${type}/${tmdbId}: ${e.message}`);
-        return null;
+        return null; // Fail gracefully
     }
 }
 
@@ -102,6 +104,7 @@ async function formatTraktData(list, type, language) {
     });
 
     // 2. Prepare items and fetch TMDB details in parallel
+    // Note: Fetching 20 items in parallel is usually fine for these widgets.
     const enrichedItems = await Promise.all(validList.map(async (item) => {
         const obj = isMovie ? item.movie : item.show;
         const tmdbId = obj.ids.tmdb;
@@ -130,6 +133,7 @@ async function formatTraktData(list, type, language) {
         const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : (obj.released || obj.first_aired));
 
         // Construct unique ID for Forward
+        // README: For tmdb id, it needs to be composed of type.id
         let uniqueId = "";
         let itemType = "tmdb";
         if (tmdbId) {
@@ -157,7 +161,7 @@ async function formatTraktData(list, type, language) {
             voteCount: voteCount
         };
 
-        // Genres
+        // Genres: Use TMDB's detailed genre list if available
         if (tmdbData && tmdbData.genres) {
             tmdbInfo.genreTitle = tmdbData.genres.map(g => g.name).join(", ");
         } else if (Array.isArray(obj.genres)) {
@@ -196,16 +200,19 @@ async function formatTraktData(list, type, language) {
 
 async function fetchTraktTrending(type, params) {
     const clientId = safeStr(params.clientId).trim();
-    const language = safeStr(params.language || "zh-CN"); // Default to Chinese as per user preference
+    const language = safeStr(params.language || "zh-CN");
+    const page = parseInt(params.page || 1, 10);
 
     if (!clientId) {
         throw new Error("Trakt Client ID is required.");
     }
 
     // Fetch list from Trakt
-    const url = `https://api.trakt.tv/${type}/trending?extended=full&limit=20`;
+    // Trakt API: ?page=1&limit=20
+    const limit = 20; // Default limit
+    const url = `https://api.trakt.tv/${type}/trending?extended=full&limit=${limit}&page=${page}`;
 
-    console.log(`Fetching from Trakt (${type})...`);
+    console.log(`Fetching from Trakt (${type}) Page ${page}...`);
 
     try {
         const response = await Widget.http.get(url, {
@@ -219,11 +226,11 @@ async function fetchTraktTrending(type, params) {
         const list = (typeof data === "string") ? JSON.parse(data) : data;
 
         if (!Array.isArray(list)) {
-            console.error("Invalid Trakt response");
+            // If page is out of range, Trakt might return empty array which is fine.
+            console.error("Invalid Trakt response format");
             return [];
         }
 
-        // Pass language to formatter for TMDB enrichment
         return await formatTraktData(list, type, language);
 
     } catch (error) {
