@@ -1,9 +1,9 @@
 var WidgetMetadata = {
     id: "forward.trakt.trending",
     title: "Trakt Trending",
-    version: "1.1.0",
+    version: "1.2.0",
     requiredVersion: "0.0.1",
-    description: "Browse trending movies/shows from Trakt (with optional TMDB metadata).",
+    description: "Browse trending movies/shows from Trakt (enriched with TMDB).",
     author: "ForwardWidget User",
     site: "https://trakt.tv/",
     modules: [
@@ -20,11 +20,10 @@ var WidgetMetadata = {
                     value: ""
                 },
                 {
-                    name: "tmdbApiKey",
-                    title: "TMDB API Key (Optional)",
-                    type: "input",
-                    description: "For posters/backdrops. Leave empty for text-only.",
-                    value: ""
+                    name: "language",
+                    title: "Language",
+                    type: "language",
+                    value: "zh-CN"
                 }
             ]
         },
@@ -41,11 +40,10 @@ var WidgetMetadata = {
                     value: ""
                 },
                 {
-                    name: "tmdbApiKey",
-                    title: "TMDB API Key (Optional)",
-                    type: "input",
-                    description: "For posters/backdrops. Leave empty for text-only.",
-                    value: ""
+                    name: "language",
+                    title: "Language",
+                    type: "language",
+                    value: "zh-CN"
                 }
             ]
         }
@@ -73,110 +71,78 @@ function buildTraktHeaders(clientId) {
 
 // --- Data Fetching & Formatting ---
 
-async function fetchTmdbDetails(tmdbId, type, apiKey) {
-    if (!tmdbId || !apiKey) return null;
-
-    // type: 'movie' or 'tv'
-    // endpoint: https://api.themoviedb.org/3/movie/{movie_id}?api_key=<<api_key>>&language=en-US
-    // We can also request images? append_to_response=images
-
-    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${apiKey}&language=zh-CN`;
-    // Note: Using zh-CN as per the user's previous example snippets having Chinese text, 
-    // but Trakt trending is global. Let's stick to user's implied preference or default? 
-    // The previous user examples ("热门电影") were Chinese. I'll default to zh-CN but this is configurable ideally.
-    // For now I'll use no language param to get default (usually en-US) OR match the user's likely locale.
-    // Let's stick to en-US for broad compatibility unless requested otherwise, 
-    // BUT the user provided a Chinese example in step 15/20. 
-    // I will use `language=zh-CN` to match the example vibe, or maybe just `language=en-US` if they want English?
-    // User's metadata prompt in step 0 was English.
-    // User's metadata prompt in step 20 was Chinese.
-    // I will TRY to detect but since I can't, I'll use a neutral approach or just pass what we get.
-    // I'll leave language out (defaults to en-US) to be safe for a "Trakt" widget which is English-centric usually.
-    // Actually, let's use `en-US` as safe default for Trakt.
-
+// New: Helper to fetch single item details via native Widget.tmdb proxy
+async function fetchTmdbDetail(tmdbId, type, language) {
+    if (!tmdbId) return null;
     try {
-        const res = await Widget.http.get(url);
-        return res && res.data ? (typeof res.data === 'string' ? JSON.parse(res.data) : res.data) : null;
+        // e.g. movie/123 or tv/456
+        const path = `${type}/${tmdbId}`;
+        const res = await Widget.tmdb.get(path, { params: { language: language } });
+        // response structure of Widget.tmdb.get often mirrors axios: { data: ... } or direct data?
+        // In the user's example: 
+        // const response = await Widget.tmdb.get(api, { params: params });
+        // const data = response.results;
+        // So it likely returns an object where .results is the list for lists, 
+        // OR the full object for details. 
+        // Based on standard axios/http patterns in these widgets, response is the wrapper.
+        return res;
     } catch (e) {
-        console.log(`TMDB fetch failed for ${type}.${tmdbId}: ${e.message}`);
+        console.log(`TMDB fetch failed for ${type}/${tmdbId}: ${e.message}`);
         return null;
     }
 }
 
-async function formatTraktData(list, type, tmdbApiKey) {
+async function formatTraktData(list, type, language) {
     const isMovie = (type === "movies");
 
-    // 1. Filter valid items
+    // 1. Filter valid items from Trakt
     const validList = list.filter(item => {
         const obj = isMovie ? item.movie : item.show;
         return obj && obj.title && obj.ids;
     });
 
-    // 2. Prepare for TMDB enrichment if key provided
-    // We'll map them to a temporary structure first
-    const mappedItems = validList.map(item => {
+    // 2. Prepare items and fetch TMDB details in parallel
+    const enrichedItems = await Promise.all(validList.map(async (item) => {
         const obj = isMovie ? item.movie : item.show;
-        return {
-            traktObj: obj,
-            watchers: item.watchers,
-            tmdbId: obj.ids.tmdb
-        };
-    });
+        const tmdbId = obj.ids.tmdb;
 
-    // 3. Fetch from TMDB in parallel if API key exists
-    let tmdbResults = {};
-    if (tmdbApiKey) {
-        console.log("Fetching additional metadata from TMDB...");
-        const promises = mappedItems.map(it => {
-            if (!it.tmdbId) return Promise.resolve(null);
-            return fetchTmdbDetails(it.tmdbId, isMovie ? "movie" : "tv", tmdbApiKey)
-                .then(data => ({ id: it.tmdbId, data }));
-        });
+        let tmdbData = null;
+        if (tmdbId) {
+            // Use the native proxy to get details (including images)
+            tmdbData = await fetchTmdbDetail(tmdbId, isMovie ? "movie" : "tv", language);
+        }
 
-        const results = await Promise.all(promises);
-        results.forEach(r => {
-            if (r) tmdbResults[r.id] = r.data;
-        });
-    }
-
-    // 4. Construct Final Objects
-    return mappedItems.map(it => {
-        const obj = it.traktObj;
-        const ids = obj.ids || {};
-        const tmdbId = ids.tmdb;
-        const tmdbData = tmdbResults[tmdbId]; // Might be undefined
-
+        // Merge Data
         const isTv = !isMovie;
 
-        // Prefer TMDB data if available, else Trakt fallback
-        const title = tmdbData ? tmdbData.title || tmdbData.name : safeStr(obj.title);
-        const originalTitle = tmdbData ? tmdbData.original_title || tmdbData.original_name : safeStr(obj.title);
+        // Prefer TMDB data (localized, with images)
+        const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(obj.title);
+        const originalTitle = tmdbData ? (tmdbData.original_title || tmdbData.original_name) : safeStr(obj.title);
         const overview = tmdbData ? tmdbData.overview : safeStr(obj.overview);
 
-        // Images
-        const posterPath = tmdbData ? (tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "") : "";
-        const backdropPath = tmdbData ? (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tmdbData.backdrop_path}` : "") : "";
+        // Images (TMDB returns partial paths like /abc.jpg)
+        const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
+        const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
 
         const rating = tmdbData ? tmdbData.vote_average : (obj.rating ? Number(obj.rating) : 0);
         const voteCount = tmdbData ? tmdbData.vote_count : (obj.votes || 0);
 
-        // Unique ID for ForwardWidget
+        const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : (obj.released || obj.first_aired));
+
+        // Construct unique ID for Forward
         let uniqueId = "";
         let itemType = "tmdb";
         if (tmdbId) {
             uniqueId = (isTv ? "tv." : "movie.") + tmdbId;
             itemType = "tmdb";
-        } else if (ids.imdb) {
-            uniqueId = ids.imdb;
+        } else if (obj.ids.imdb) {
+            uniqueId = obj.ids.imdb;
             itemType = "imdb";
         } else {
-            uniqueId = String(ids.trakt) || Math.random().toString(36);
+            uniqueId = String(obj.ids.trakt) || Math.random().toString(36);
             itemType = "url";
         }
 
-        const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : (obj.released || obj.first_aired));
-
-        // Construct tmdbInfo object matching the user's reference
         const tmdbInfo = {
             id: tmdbId ? String(tmdbId) : "",
             originalTitle: originalTitle,
@@ -186,12 +152,12 @@ async function formatTraktData(list, type, tmdbApiKey) {
             posterPath: posterPath,
             rating: rating,
             mediaType: isTv ? "tv" : "movie",
-            genreTitle: "", // We could map IDs -> Names if we fetched genre list, but for now skip or use Trakt's if available
-            popularity: tmdbData ? tmdbData.popularity : (it.watchers || 0),
+            genreTitle: "",
+            popularity: tmdbData ? tmdbData.popularity : (item.watchers || 0),
             voteCount: voteCount
         };
 
-        // Fill genres from Trakt if TMDB didn't provide easy string, or use TMDB genres array
+        // Genres
         if (tmdbData && tmdbData.genres) {
             tmdbInfo.genreTitle = tmdbData.genres.map(g => g.name).join(", ");
         } else if (Array.isArray(obj.genres)) {
@@ -208,7 +174,7 @@ async function formatTraktData(list, type, tmdbApiKey) {
             backdropPath: backdropPath,
             posterPath: posterPath,
             rating: rating,
-            mediaType: isTv ? "tv" : "movie",
+            mediaType: tmdbInfo.mediaType,
             genreTitle: tmdbInfo.genreTitle,
             tmdbInfo: tmdbInfo,
             year: obj.year ? String(obj.year) : "",
@@ -221,19 +187,22 @@ async function formatTraktData(list, type, tmdbApiKey) {
             playable: false,
             episodeCount: "",
         };
-    });
+    }));
+
+    return enrichedItems;
 }
 
 // --- Main Logic ---
 
 async function fetchTraktTrending(type, params) {
     const clientId = safeStr(params.clientId).trim();
-    const tmdbApiKey = safeStr(params.tmdbApiKey).trim();
+    const language = safeStr(params.language || "zh-CN"); // Default to Chinese as per user preference
 
     if (!clientId) {
         throw new Error("Trakt Client ID is required.");
     }
 
+    // Fetch list from Trakt
     const url = `https://api.trakt.tv/${type}/trending?extended=full&limit=20`;
 
     console.log(`Fetching from Trakt (${type})...`);
@@ -254,7 +223,8 @@ async function fetchTraktTrending(type, params) {
             return [];
         }
 
-        return await formatTraktData(list, type, tmdbApiKey);
+        // Pass language to formatter for TMDB enrichment
+        return await formatTraktData(list, type, language);
 
     } catch (error) {
         console.error(`Error in Trakt widget:`, error);
