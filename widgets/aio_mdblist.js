@@ -1,64 +1,61 @@
 
-// --- Catalog Configuration ---
+// --- configuration ---
+const STREMIO_BASE_URL = "https://aiometadatafortheweak.nhyira.dev/stremio/7e79368f-22da-4379-8291-45702e84bec7";
+
 const CATALOGS = [
     { id: "tmdb.trending.movie", name: "TMDB Trending Movies", type: "movie", source: "tmdb", path: "trending/movie/day" },
     { id: "tmdb.trending.tv", name: "TMDB Trending Shows", type: "series", source: "tmdb", path: "trending/tv/day" },
 
-    // MDBList Catalogs
-    { id: "86626", name: "Top Movies - Apple TV+", type: "movie", source: "mdblist" },
-    { id: "86625", name: "Top TV Shows - Apple TV+", type: "series", source: "mdblist" },
-    { id: "4799", name: "Discovery+", type: "series", source: "mdblist" },
-    { id: "86945", name: "Top Movies - Disney+", type: "movie", source: "mdblist" },
-    { id: "86946", name: "Top TV Shows - Disney+", type: "series", source: "mdblist" },
-    { id: "89392", name: "Top Movies - HBO Max", type: "movie", source: "mdblist" },
-    { id: "89310", name: "Top TV Shows - HBO Max", type: "series", source: "mdblist" },
-    { id: "88326", name: "Hulu Movies", type: "movie", source: "mdblist" },
-    { id: "88327", name: "Hulu Shows", type: "series", source: "mdblist" },
-    { id: "86628", name: "Top Movies - Netflix", type: "movie", source: "mdblist" },
-    { id: "86620", name: "Top TV Shows - Netflix", type: "series", source: "mdblist" },
-    { id: "89366", name: "Top Movies - Paramount+", type: "movie", source: "mdblist" },
-    { id: "89374", name: "Top TV Shows - Paramount+", type: "series", source: "mdblist" },
-    { id: "83487", name: "Peacock Movies", type: "movie", source: "mdblist" },
-    { id: "83484", name: "Peacock Shows", type: "series", source: "mdblist" },
-    { id: "86755", name: "Amazon Prime Movies", type: "movie", source: "mdblist" },
-    { id: "86753", name: "Amazon Prime Shows", type: "series", source: "mdblist" },
-    { id: "87667", name: "Trakt Trending Movies", type: "movie", source: "mdblist" },
-    { id: "88434", name: "Trakt Trending Shows", type: "series", source: "mdblist" },
+    // MDBList Catalogs (via Stremio Addon)
+    // Note: Stremio config uses 'mdblist.ID' as the ID in the URL usually, or just ID if defined as such.
+    // The user's config showed IDs like "mdblist.86626".
+    // We will assume the Stremio Addon expects "mdblist.86626" as the catalog ID in the URL.
+    { id: "mdblist.86626", name: "Top Movies - Apple TV+", type: "movie", source: "stremio" },
+    { id: "mdblist.86625", name: "Top TV Shows - Apple TV+", type: "series", source: "stremio" },
+    { id: "mdblist.4799", name: "Discovery+", type: "series", source: "stremio" },
+    { id: "mdblist.86945", name: "Top Movies - Disney+", type: "movie", source: "stremio" },
+    { id: "mdblist.86946", name: "Top TV Shows - Disney+", type: "series", source: "stremio" },
+    { id: "mdblist.89392", name: "Top Movies - HBO Max", type: "movie", source: "stremio" },
+    { id: "mdblist.89310", name: "Top TV Shows - HBO Max", type: "series", source: "stremio" },
+    { id: "mdblist.88326", name: "Hulu Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.88327", name: "Hulu Shows", type: "series", source: "stremio" },
+    { id: "mdblist.86628", name: "Top Movies - Netflix", type: "movie", source: "stremio" },
+    { id: "mdblist.86620", name: "Top TV Shows - Netflix", type: "series", source: "stremio" },
+    { id: "mdblist.89366", name: "Top Movies - Paramount+", type: "movie", source: "stremio" },
+    { id: "mdblist.89374", name: "Top TV Shows - Paramount+", type: "series", source: "stremio" },
+    { id: "mdblist.83487", name: "Peacock Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.83484", name: "Peacock Shows", type: "series", source: "stremio" },
+    { id: "mdblist.86755", name: "Amazon Prime Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.86753", name: "Amazon Prime Shows", type: "series", source: "stremio" },
+    { id: "mdblist.87667", name: "Trakt Trending Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.88434", name: "Trakt Trending Shows", type: "series", source: "stremio" },
 
     // Genres
-    { id: "91211", name: "Action Movies", type: "movie", source: "mdblist" },
-    { id: "91213", name: "Action Shows", type: "series", source: "mdblist" },
-    { id: "116037", name: "Animated Movies", type: "movie", source: "mdblist" },
-    { id: "91223", name: "Comedy Movies", type: "movie", source: "mdblist" },
-    { id: "91215", name: "Horror Movies", type: "movie", source: "mdblist" },
-    { id: "91221", name: "Sci-Fi Shows", type: "series", source: "mdblist" },
+    { id: "mdblist.91211", name: "Action Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91213", name: "Action Shows", type: "series", source: "stremio" },
+    { id: "mdblist.116037", name: "Animated Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91223", name: "Comedy Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91215", name: "Horror Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91221", name: "Sci-Fi Shows", type: "series", source: "stremio" },
 
     // Universes
-    { id: "3022", name: "Marvel Universe", type: "movie", source: "mdblist" },
-    { id: "3021", name: "DC Universe", type: "movie", source: "mdblist" },
-    { id: "125115", name: "Star Wars Universe", type: "series", source: "mdblist" },
-    { id: "105063", name: "Harry Potter", type: "series", source: "mdblist" },
+    { id: "mdblist.3022", name: "Marvel Universe", type: "movie", source: "stremio" },
+    { id: "mdblist.3021", name: "DC Universe", type: "movie", source: "stremio" },
+    { id: "mdblist.125115", name: "Star Wars Universe", type: "series", source: "stremio" },
+    { id: "mdblist.105063", name: "Harry Potter", type: "series", source: "stremio" },
 
     // Eras
-    { id: "91304", name: "Popular 2020s Movies", type: "movie", source: "mdblist" }
+    { id: "mdblist.91304", name: "Popular 2020s Movies", type: "movie", source: "stremio" }
 ];
 
 // Generate Modules
 const MODULES = CATALOGS.map(cat => {
     return {
-        id: `mod_${cat.id}`,
+        id: `mod_${cat.id.replace(/\./g, '_')}`, // Sanitize ID for module ID
         title: cat.name,
         functionName: "fetchList",
         sectionMode: false,
         params: [
-            {
-                name: "apiKey",
-                title: "MDBList API Key",
-                type: "input",
-                // For TMDB lists, make it optional/hidden logic, but UI needs consistent params
-                description: cat.source === "mdblist" ? "Required" : "Optional for TMDB",
-                value: ""
-            },
             {
                 name: "language",
                 title: "Language",
@@ -77,16 +74,15 @@ const MODULES = CATALOGS.map(cat => {
 });
 
 var WidgetMetadata = {
-    id: "forward.aio.modules",
-    title: "AIO Catalogs",
-    version: "2.0.0",
+    id: "forward.aio.stremio",
+    title: "AIO Catalogs (Stremio)",
+    version: "2.1.0",
     requiredVersion: "0.0.1",
-    description: "Individual widgets for each catalog (Apple, Disney, Netflix...).",
+    description: "Browse curated lists from your AIO Stremio Addon.",
     author: "ForwardWidget User",
     site: "https://mdblist.com",
     modules: MODULES
 };
-
 
 // --- Helper Functions ---
 
@@ -100,58 +96,77 @@ function toISODate(v) {
 
 // --- Fetching Logic ---
 
-async function fetchTmdbDetail(tmdbId, type, language) {
-    if (!tmdbId) return null;
+async function fetchTmdbDetail(externalId, type, language) {
+    if (!externalId) return null;
     try {
-        const path = `${type}/${tmdbId}`;
-        const res = await Widget.tmdb.get(path, { params: { language: language } });
-        return res;
-    } catch (e) { return null; }
+        if (externalId.startsWith("tt")) {
+            const findPath = `find/${externalId}`;
+            const res = await Widget.tmdb.get(findPath, {
+                params: {
+                    language: language,
+                    external_source: "imdb_id"
+                }
+            });
+            if (res) {
+                const results = (type === "movie") ? res.movie_results : res.tv_results;
+                if (results && results.length > 0) return results[0];
+                const other = (type === "movie") ? res.tv_results : res.movie_results;
+                if (other && other.length > 0) return other[0];
+            }
+            return null;
+        }
+        if (/^\d+$/.test(externalId)) {
+            const path = `${type}/${externalId}`;
+            const res = await Widget.tmdb.get(path, { params: { language: language } });
+            return res;
+        }
+    } catch (e) {
+        return null;
+    }
+    return null;
 }
 
-async function formatItems(listItems, reqType, language, isTmdbSource) {
-    if (isTmdbSource) {
-        return listItems.map(item => ({
-            id: item.id,
-            type: "tmdb",
-            title: item.title || item.name,
-            description: item.overview,
-            releaseDate: item.release_date || item.first_air_date,
-            backdropPath: item.backdrop_path,
-            posterPath: item.poster_path,
-            rating: item.vote_average,
-            mediaType: item.media_type || reqType,
-            genreTitle: ""
-        }));
-    }
+// Reuse logic from stremio.js basically
+async function formatStremioItems(metas, reqType, language) {
+    const enrichedItems = await Promise.all(metas.map(async (item) => {
+        const stremioId = item.id;
+        const mediaType = item.type || reqType;
 
-    // MDBList Logic
-    const validList = listItems.filter(item => item.tmdb_id);
-    const enrichedItems = await Promise.all(validList.map(async (item) => {
-        const tmdbId = item.tmdb_id;
-        const mediaType = item.mediatype;
         const isMovie = (mediaType === "movie");
-        const typeStr = isMovie ? "movie" : "tv";
+        const tmdbType = isMovie ? "movie" : "tv";
 
-        let tmdbData = await fetchTmdbDetail(tmdbId, typeStr, language);
+        let tmdbData = await fetchTmdbDetail(stremioId, tmdbType, language);
 
-        const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.title);
-        const overview = tmdbData ? tmdbData.overview : "";
-        const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
-        const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
-        const rating = tmdbData ? tmdbData.vote_average : (item.score_average ? Number(item.score_average) / 10 : 0);
-        const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : item.release_date);
+        const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.name);
+        const overview = tmdbData ? tmdbData.overview : safeStr(item.description);
+        const posterPath = tmdbData ? (tmdbData.poster_path || "") : (item.poster || "");
+        const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : (item.background || "");
+
+        const rating = tmdbData ? tmdbData.vote_average : (item.imdbRating ? Number(item.imdbRating) : 0);
+        const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : item.releaseInfo);
+
+        let uniqueId = stremioId;
+        let itemType = "imdb";
+
+        if (tmdbData && tmdbData.id) {
+            uniqueId = tmdbData.id;
+            itemType = "tmdb";
+        } else if (stremioId.startsWith("tt")) {
+            itemType = "imdb";
+        } else {
+            itemType = "url";
+        }
 
         return {
-            id: tmdbId,
-            type: "tmdb",
+            id: uniqueId,
+            type: itemType,
             title: title,
             description: overview,
             releaseDate: releaseDate,
             backdropPath: backdropPath,
             posterPath: posterPath,
             rating: rating,
-            mediaType: typeStr,
+            mediaType: tmdbType,
             genreTitle: ""
         };
     }));
@@ -159,36 +174,47 @@ async function formatItems(listItems, reqType, language, isTmdbSource) {
     return enrichedItems;
 }
 
-// --- Main Function using Catalog ID ---
+async function formatTmdbItems(listItems, reqType, language) {
+    return listItems.map(item => ({
+        id: item.id,
+        type: "tmdb",
+        title: item.title || item.name,
+        description: item.overview,
+        releaseDate: item.release_date || item.first_air_date,
+        backdropPath: item.backdrop_path,
+        posterPath: item.poster_path,
+        rating: item.vote_average,
+        mediaType: item.media_type || reqType,
+        genreTitle: ""
+    }));
+}
+
+// --- Main Function ---
 
 async function fetchList(params) {
-    const apiKey = safeStr(params.apiKey).trim();
     const language = safeStr(params.language || "zh-CN");
     const catalogId = safeStr(params.catalogId);
 
-    // Find the catalog definition
     const cat = CATALOGS.find(c => c.id === catalogId);
     if (!cat) throw new Error("Catalog not found.");
-
-    if (cat.source === "mdblist" && !apiKey) {
-        throw new Error("MDBList API Key required.");
-    }
 
     try {
         if (cat.source === "tmdb") {
             const res = await Widget.tmdb.get(cat.path, { params: { language: language } });
             if (res && res.results) {
-                return await formatItems(res.results, cat.type === "movie" ? "movie" : "tv", language, true);
+                return await formatTmdbItems(res.results, cat.type === "movie" ? "movie" : "tv", language);
             }
-        } else if (cat.source === "mdblist") {
-            const limit = 20;
-            const url = `https://api.mdblist.com/lists/${cat.id}/items?apikey=${apiKey}&limit=${limit}`;
+        } else if (cat.source === "stremio") {
+            // URL: {BASE_URL}/catalog/{type}/{id}.json
+            const url = `${STREMIO_BASE_URL}/catalog/${cat.type}/${cat.id}.json`;
+            console.log("Fetching Stremio AIO:", url);
+
             const res = await Widget.http.get(url);
             let data = res.data;
             if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { } }
 
-            if (Array.isArray(data)) {
-                return await formatItems(data, cat.type, language, false);
+            if (data && Array.isArray(data.metas)) {
+                return await formatStremioItems(data.metas, cat.type, language);
             }
         }
     } catch (e) {
