@@ -3,83 +3,55 @@
 const STREMIO_BASE_URL = "https://aiometadatafortheweak.nhyira.dev/stremio/7e79368f-22da-4379-8291-45702e84bec7";
 
 const CATALOGS = [
-    { id: "tmdb.trending.movie", name: "Movies", type: "movie", source: "tmdb", path: "trending/movie/day" },
-    { id: "tmdb.trending.tv", name: "Shows", type: "series", source: "tmdb", path: "trending/tv/day" },
+    { id: "tmdb.trending.movie", name: "TMDB Trending Movies", type: "movie", source: "tmdb", path: "trending/movie/day" },
+    { id: "tmdb.trending.tv", name: "TMDB Trending Shows", type: "series", source: "tmdb", path: "trending/tv/day" },
 
-    // MDBList Catalogs
-    { id: "mdblist.86626", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.86625", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.4799", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.86945", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.86946", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.89392", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.89310", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.88326", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.88327", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.86628", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.86620", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.89366", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.89374", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.83487", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.83484", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.86755", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.86753", name: "Shows", type: "series", source: "stremio" },
-
-    { id: "mdblist.87667", name: "Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.88434", name: "Shows", type: "series", source: "stremio" },
+    // MDBList Catalogs (via Stremio Addon)
+    { id: "mdblist.86626", name: "Top Movies - Apple TV+", type: "movie", source: "stremio" },
+    { id: "mdblist.86625", name: "Top TV Shows - Apple TV+", type: "series", source: "stremio" },
+    { id: "mdblist.4799", name: "Discovery+", type: "series", source: "stremio" },
+    { id: "mdblist.86945", name: "Top Movies - Disney+", type: "movie", source: "stremio" },
+    { id: "mdblist.86946", name: "Top TV Shows - Disney+", type: "series", source: "stremio" },
+    { id: "mdblist.89392", name: "Top Movies - HBO Max", type: "movie", source: "stremio" },
+    { id: "mdblist.89310", name: "Top TV Shows - HBO Max", type: "series", source: "stremio" },
+    { id: "mdblist.88326", name: "Hulu Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.88327", name: "Hulu Shows", type: "series", source: "stremio" },
+    { id: "mdblist.86628", name: "Top Movies - Netflix", type: "movie", source: "stremio" },
+    { id: "mdblist.86620", name: "Top TV Shows - Netflix", type: "series", source: "stremio" },
+    { id: "mdblist.89366", name: "Top Movies - Paramount+", type: "movie", source: "stremio" },
+    { id: "mdblist.89374", name: "Top TV Shows - Paramount+", type: "series", source: "stremio" },
+    { id: "mdblist.83487", name: "Peacock Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.83484", name: "Peacock Shows", type: "series", source: "stremio" },
+    { id: "mdblist.86755", name: "Amazon Prime Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.86753", name: "Amazon Prime Shows", type: "series", source: "stremio" },
+    { id: "mdblist.87667", name: "Trakt Trending Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.88434", name: "Trakt Trending Shows", type: "series", source: "stremio" },
 
     // Genres
-    { id: "mdblist.91211", name: "Action", type: "movie", source: "stremio" },
-    { id: "mdblist.91213", name: "Action", type: "series", source: "stremio" },
-    { id: "mdblist.116037", name: "Animated", type: "movie", source: "stremio" },
-    { id: "mdblist.91223", name: "Comedy", type: "movie", source: "stremio" },
-    { id: "mdblist.91215", name: "Horror", type: "movie", source: "stremio" },
-    { id: "mdblist.91221", name: "Sci-Fi", type: "series", source: "stremio" },
+    { id: "mdblist.91211", name: "Action Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91213", name: "Action Shows", type: "series", source: "stremio" },
+    { id: "mdblist.116037", name: "Animated Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91223", name: "Comedy Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91215", name: "Horror Movies", type: "movie", source: "stremio" },
+    { id: "mdblist.91221", name: "Sci-Fi Shows", type: "series", source: "stremio" },
 
     // Universes
-    { id: "mdblist.3022", name: "Marvel", type: "movie", source: "stremio" },
-    { id: "mdblist.3021", name: "DC", type: "movie", source: "stremio" },
-    // Etc..
-    { id: "mdblist.91304", name: "2020s", type: "movie", source: "stremio" }
+    { id: "mdblist.3022", name: "Marvel Universe", type: "movie", source: "stremio" },
+    { id: "mdblist.3021", name: "DC Universe", type: "movie", source: "stremio" },
+    { id: "mdblist.125115", name: "Star Wars Universe", type: "series", source: "stremio" },
+    { id: "mdblist.105063", name: "Harry Potter", type: "series", source: "stremio" },
+
+    // Eras
+    { id: "mdblist.91304", name: "Popular 2020s Movies", type: "movie", source: "stremio" }
 ];
 
-// Define Groups manually to ensure logic is perfect
-const GROUPS = [
-    { title: "TMDB Trending", ids: ["tmdb.trending.movie", "tmdb.trending.tv"] },
-    { title: "Apple TV+", ids: ["mdblist.86626", "mdblist.86625"] },
-    { title: "Disney+", ids: ["mdblist.86945", "mdblist.86946"] },
-    { title: "HBO Max", ids: ["mdblist.89392", "mdblist.89310"] },
-    { title: "Netflix", ids: ["mdblist.86628", "mdblist.86620"] },
-    { title: "Amazon Prime", ids: ["mdblist.86755", "mdblist.86753"] },
-    { title: "Hulu", ids: ["mdblist.88326", "mdblist.88327"] },
-    { title: "Paramount+", ids: ["mdblist.89366", "mdblist.89374"] },
-    { title: "Peacock", ids: ["mdblist.83487", "mdblist.83484"] },
-    { title: "Trakt Trending", ids: ["mdblist.87667", "mdblist.88434"] },
-    { title: "Discovery+", ids: ["mdblist.4799"] },
-    { title: "Action", ids: ["mdblist.91211", "mdblist.91213"] },
-    { title: "Comedy", ids: ["mdblist.91223"] },
-    { title: "Animation", ids: ["mdblist.116037"] },
-    { title: "Horror", ids: ["mdblist.91215"] },
-    { title: "Sci-Fi", ids: ["mdblist.91221"] },
-    { title: "Universes", ids: ["mdblist.3022", "mdblist.3021"] },
-    { title: "Decades", ids: ["mdblist.91304"] }
-];
-
-// Generate Modules from Groups
-const MODULES = GROUPS.map(g => {
+// Generate Individual Modules (Revert to 1-to-1)
+const MODULES = CATALOGS.map(cat => {
     return {
-        id: `group_${g.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        title: g.title,
-        functionName: "fetchGroup",
-        sectionMode: true,
+        id: `mod_${cat.id.replace(/\./g, '_')}`,
+        title: cat.name,
+        functionName: "fetchList",
+        sectionMode: false,
         params: [
             {
                 name: "language",
@@ -88,10 +60,10 @@ const MODULES = GROUPS.map(g => {
                 value: "zh-CN"
             },
             {
-                name: "catalogIds",
-                title: "IDs",
+                name: "catalogId",
+                title: "Internal ID",
                 type: "constant",
-                value: g.ids.join(","), // Pass comma-separated IDs
+                value: cat.id,
                 hidden: true
             }
         ]
@@ -99,11 +71,11 @@ const MODULES = GROUPS.map(g => {
 });
 
 var WidgetMetadata = {
-    id: "forward.aio.merged",
-    title: "AIO Merged Catalogs",
-    version: "3.1.0",
+    id: "forward.aio.merged", // Keep ID to overwrite existing installed widget if possible
+    title: "AIO Catalogs",
+    version: "4.0.0",
     requiredVersion: "0.0.1",
-    description: "Merged widgets (Movies + Series) from Stremio.",
+    description: "Browse individual curated lists from your Stremio Addon.",
     author: "ForwardWidget User",
     site: "https://mdblist.com",
     modules: MODULES
@@ -139,16 +111,20 @@ async function fetchTmdbDetail(externalId, type, language) {
     if (!externalId) return null;
     try {
         if (externalId.startsWith("tt")) {
-            const findPath = `find/${externalId}`;
+            const findPath = `find/${externalId}`; // Use 'find' for IMDb IDs
             const res = await Widget.tmdb.get(findPath, {
                 params: {
                     language: language,
                     external_source: "imdb_id"
                 }
             });
+            // Return the specific results object
             if (res) {
                 const results = (type === "movie") ? res.movie_results : res.tv_results;
                 if (results && results.length > 0) return results[0];
+                // If not found in primary type, check secondary just in case
+                const other = (type === "movie") ? res.tv_results : res.movie_results;
+                if (other && other.length > 0) return other[0];
             }
         }
         if (/^\d+$/.test(externalId)) {
@@ -161,10 +137,10 @@ async function fetchTmdbDetail(externalId, type, language) {
 }
 
 async function formatStremioItems(metas, reqType, language) {
-    // Limit processing to 100 items max to prevent insane loads
-    const limitedMetas = metas.slice(0, 50);
+    // Limit total items to prevent overload
+    const limitedMetas = metas.slice(0, 40);
 
-    // Process 5 items at a time to prevent rate limiting
+    // Process in batches of 5 to respect rate limits
     const enrichedItems = await pMap(limitedMetas, async (item) => {
         const stremioId = item.id;
         const mediaType = item.type || reqType;
@@ -173,6 +149,7 @@ async function formatStremioItems(metas, reqType, language) {
 
         let tmdbData = await fetchTmdbDetail(stremioId, tmdbType, language);
 
+        // Fallbacks
         const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.name);
         const overview = tmdbData ? tmdbData.overview : safeStr(item.description);
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : (item.poster || "");
@@ -224,16 +201,21 @@ async function formatTmdbItems(listItems, reqType, language) {
     }));
 }
 
-async function fetchSingleCatalog(catId, language) {
-    const cat = CATALOGS.find(c => c.id === catId);
-    if (!cat) return null;
+// --- Main Handler ---
+
+async function fetchList(params) {
+    const language = safeStr(params.language || "zh-CN");
+    const catalogId = safeStr(params.catalogId);
+
+    // Find the catalog definition
+    const cat = CATALOGS.find(c => c.id === catalogId);
+    if (!cat) throw new Error("Catalog not found.");
 
     try {
         if (cat.source === "tmdb") {
             const res = await Widget.tmdb.get(cat.path, { params: { language: language } });
             if (res && res.results) {
-                const items = await formatTmdbItems(res.results, cat.type === "movie" ? "movie" : "tv", language);
-                return { title: cat.name, items };
+                return await formatTmdbItems(res.results, cat.type === "movie" ? "movie" : "tv", language);
             }
         } else if (cat.source === "stremio") {
             const url = `${STREMIO_BASE_URL}/catalog/${cat.type}/${cat.id}.json`;
@@ -242,29 +224,12 @@ async function fetchSingleCatalog(catId, language) {
             if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { } }
 
             if (data && Array.isArray(data.metas)) {
-                console.log(`Loaded ${data.metas.length} items from ${cat.name}, enriching...`);
-                // Only take top 20 for speed in widget view? Should be configurable or reasonable default.
-                // 50 is reasonable for a "browse" view.
-                const items = await formatStremioItems(data.metas, cat.type, language);
-                return { title: cat.name, items };
+                return await formatStremioItems(data.metas, cat.type, language);
             }
         }
     } catch (e) {
         console.error(`Failed to fetch ${cat.name}:`, e);
+        throw e;
     }
-    return null;
-}
-
-// --- Main Handler ---
-
-async function fetchGroup(params) {
-    const language = safeStr(params.language || "zh-CN");
-    const ids = safeStr(params.catalogIds).split(",").filter(x => x);
-
-    // Fetch all catalogs in the group in parallel
-    const results = await Promise.all(ids.map(id => fetchSingleCatalog(id, language)));
-
-    // Filter out failed fetches
-    const sections = results.filter(s => s && s.items.length > 0);
-    return sections;
+    return [];
 }
