@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.trakt.trending",
     title: "Trakt Trending",
-    version: "1.4.0",
+    version: "1.5.0",
     requiredVersion: "0.0.1",
     description: "Browse trending movies/shows from Trakt (enriched with TMDB).",
     author: "ForwardWidget User",
@@ -114,25 +114,21 @@ async function formatTraktData(list, type, language) {
         const isTv = !isMovie;
 
         const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(obj.title);
-        const originalTitle = tmdbData ? (tmdbData.original_title || tmdbData.original_name) : safeStr(obj.title);
         const overview = tmdbData ? tmdbData.overview : safeStr(obj.overview);
 
         const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
         const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
 
         const rating = tmdbData ? tmdbData.vote_average : (obj.rating ? Number(obj.rating) : 0);
-        const voteCount = tmdbData ? tmdbData.vote_count : (obj.votes || 0);
 
         const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : (obj.released || obj.first_aired));
 
-        // ID Logic:
-        // Works: tmdb.js returns raw ID (e.g. 12345) and type "tmdb".
-        // Broken: prefixing "movie.12345".
-        let uniqueId = "";
+        // ID Logic: Match tmdb.js exactly
+        let uniqueId;
         let itemType = "tmdb";
 
         if (tmdbId) {
-            uniqueId = tmdbId; // Raw ID
+            uniqueId = tmdbId; // Raw value (Number)
             itemType = "tmdb";
         } else if (obj.ids.imdb) {
             uniqueId = obj.ids.imdb;
@@ -142,50 +138,25 @@ async function formatTraktData(list, type, language) {
             itemType = "url";
         }
 
-        const tmdbInfo = {
-            id: tmdbId ? String(tmdbId) : "",
-            originalTitle: originalTitle,
+        let genreTitle = "";
+        if (tmdbData && tmdbData.genres) {
+            genreTitle = tmdbData.genres.map(g => g.name).join(", ");
+        } else if (Array.isArray(obj.genres)) {
+            genreTitle = obj.genres.join(", ");
+        }
+
+        // STRICT RETURN OBJECT matching tmdb.js structure
+        return {
+            id: uniqueId,
+            type: itemType,
+            title: title,
             description: overview,
             releaseDate: releaseDate,
             backdropPath: backdropPath,
             posterPath: posterPath,
             rating: rating,
             mediaType: isTv ? "tv" : "movie",
-            genreTitle: "",
-            popularity: tmdbData ? tmdbData.popularity : (item.watchers || 0),
-            voteCount: voteCount
-        };
-
-        if (tmdbData && tmdbData.genres) {
-            tmdbInfo.genreTitle = tmdbData.genres.map(g => g.name).join(", ");
-        } else if (Array.isArray(obj.genres)) {
-            tmdbInfo.genreTitle = obj.genres.join(", ");
-        }
-
-        return {
-            id: uniqueId,
-            type: itemType,
-            title: title,
-            originalTitle: originalTitle,
-            description: overview,
-            releaseDate: releaseDate,
-            backdropPath: backdropPath,
-            posterPath: posterPath,
-            rating: rating,
-            mediaType: tmdbInfo.mediaType,
-            genreTitle: tmdbInfo.genreTitle,
-            tmdbInfo: tmdbInfo,
-            year: obj.year ? String(obj.year) : "",
-            // Extra metadata that might help Stremio/plugins
-            imdbId: obj.ids.imdb || "",
-            countries: tmdbData && tmdbData.production_countries ? tmdbData.production_countries.map(c => c.name) : [],
-            directors: [],
-            actors: [],
-            popularity: tmdbInfo.popularity,
-            voteCount: tmdbInfo.voteCount,
-            isNew: false,
-            playable: false,
-            episodeCount: "",
+            genreTitle: genreTitle
         };
     }));
 
