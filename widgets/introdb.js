@@ -1,7 +1,7 @@
 var WidgetMetadata = {
     id: "forward.introdb",
     title: "IntroDB (Skip Intro)",
-    version: "1.0.0",
+    version: "1.0.1",
     requiredVersion: "0.0.1",
     description: "Fetch crowdsourced intro timestamps for TV shows.",
     author: "ForwardWidget User",
@@ -11,7 +11,7 @@ var WidgetMetadata = {
             id: "getIntro",
             title: "Get Intro Timestamps",
             functionName: "getIntro",
-            type: "danmu", // Using 'danmu' type often allows passing context like season/episode/imdbId automatically
+            type: "danmu",
             params: []
         }
     ]
@@ -23,22 +23,47 @@ function safeStr(v) {
     return (v === undefined || v === null) ? "" : String(v);
 }
 
+async function getImdbIdFromTmdb(tmdbId, type) {
+    if (!tmdbId) return null;
+    try {
+        // Fetch external IDs from TMDB
+        // type is usually 'tv' or 'movie'. For IntroDB it's mostly TV shows.
+        // But context might just give tmdbId.
+        // We'll assume 'tv' if season/episode are present, which they must be for introdb.
+        const path = `tv/${tmdbId}/external_ids`;
+        const res = await Widget.tmdb.get(path, {});
+        if (res && res.imdb_id) {
+            return res.imdb_id;
+        }
+    } catch (e) {
+        console.log("Failed to resolve IMDb ID from TMDB:", e);
+    }
+    return null;
+}
+
 // --- Main Logic ---
 
 async function getIntro(params) {
-    // Params automatically populated by player context if available, 
-    // or passed explicitly.
-    // api-1.yaml requires: imdb_id, season, episode.
+    // Params from Player: tmdbId, season, episode, type...
+    // IntroDB needs: imdb_id
 
-    // Normalized param names from ForwardWidget context might be camelCase
-    // e.g. params.imdbId, params.season, params.episode
-
-    const imdbId = safeStr(params.imdbId || params.imdb_id);
+    let imdbId = safeStr(params.imdbId || params.imdb_id);
+    const tmdbId = safeStr(params.tmdbId || params.tmdb_id);
     const season = parseInt(params.season, 10);
     const episode = parseInt(params.episode, 10);
 
+    // Automatic Resolution: If we have tmdbId but no imdbId, resolve it.
+    if ((!imdbId || !imdbId.startsWith("tt")) && tmdbId) {
+        console.log(`Resolving IMDb ID for TMDB ${tmdbId}...`);
+        const resolved = await getImdbIdFromTmdb(tmdbId, "tv");
+        if (resolved) {
+            imdbId = resolved;
+            console.log(`Resolved IMDb ID: ${imdbId}`);
+        }
+    }
+
     if (!imdbId || !imdbId.startsWith("tt")) {
-        console.log("IntroDB: Invalid or missing IMDb ID");
+        console.log("IntroDB: Could not find valid IMDb ID");
         return [];
     }
     if (isNaN(season) || isNaN(episode)) {
@@ -58,42 +83,28 @@ async function getIntro(params) {
         });
 
         const data = response && response.data;
-        // API returns { start_ms, end_ms, ... } or 404
 
-        // Parse if string
         let json = data;
         if (typeof data === "string") {
             try { json = JSON.parse(data); } catch (e) { }
         }
 
         if (!json || json.error) {
-            console.log("IntroDB: No intro found or error.");
             return [];
         }
 
-        // Convert to Danmu/Skip format
-        // Standard "Skip" format for some players is:
-        // { start: seconds, end: seconds, text: "Skip Intro" }
-        // Or if acting as Danmu source, maybe just return data.
-        // Given 'danmu' type, let's return a special object if possible, 
-        // or just the raw data if the user handles it. 
-
-        // Let's assume generic return for now, but format for "Skip".
-        // 1000ms = 1s
         const start = json.start_ms / 1000;
         const end = json.end_ms / 1000;
 
-        // Return standard Skip Overlay items
         return [{
             start: start,
             end: end,
             text: "Skip Intro",
-            type: "skip" // Custom type convention
+            type: "skip"
         }];
 
     } catch (error) {
         if (error.message && error.message.includes("404")) {
-            console.log("IntroDB: 404 Not Found (No intro data)");
             return [];
         }
         console.error("IntroDB Error:", error);
