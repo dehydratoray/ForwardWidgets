@@ -37,18 +37,18 @@ const CATALOGS = [
     { id: "mdblist.88434", name: "Shows", type: "series", source: "stremio" },
 
     // Genres
-    { id: "mdblist.91211", name: "Action Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.91213", name: "Action Shows", type: "series", source: "stremio" },
-    { id: "mdblist.116037", name: "Animated Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.91223", name: "Comedy Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.91215", name: "Horror Movies", type: "movie", source: "stremio" },
-    { id: "mdblist.91221", name: "Sci-Fi Shows", type: "series", source: "stremio" },
+    { id: "mdblist.91211", name: "Action", type: "movie", source: "stremio" },
+    { id: "mdblist.91213", name: "Action", type: "series", source: "stremio" },
+    { id: "mdblist.116037", name: "Animated", type: "movie", source: "stremio" },
+    { id: "mdblist.91223", name: "Comedy", type: "movie", source: "stremio" },
+    { id: "mdblist.91215", name: "Horror", type: "movie", source: "stremio" },
+    { id: "mdblist.91221", name: "Sci-Fi", type: "series", source: "stremio" },
 
     // Universes
-    { id: "mdblist.3022", name: "Marvel Universe", type: "movie", source: "stremio" },
-    { id: "mdblist.3021", name: "DC Universe", type: "movie", source: "stremio" },
+    { id: "mdblist.3022", name: "Marvel", type: "movie", source: "stremio" },
+    { id: "mdblist.3021", name: "DC", type: "movie", source: "stremio" },
     // Etc..
-    { id: "mdblist.91304", name: "Popular 2020s", type: "movie", source: "stremio" }
+    { id: "mdblist.91304", name: "2020s", type: "movie", source: "stremio" }
 ];
 
 // Define Groups manually to ensure logic is perfect
@@ -79,7 +79,7 @@ const MODULES = GROUPS.map(g => {
         id: `group_${g.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
         title: g.title,
         functionName: "fetchGroup",
-        sectionMode: true, // Key feature!
+        sectionMode: true,
         params: [
             {
                 name: "language",
@@ -101,7 +101,7 @@ const MODULES = GROUPS.map(g => {
 var WidgetMetadata = {
     id: "forward.aio.merged",
     title: "AIO Merged Catalogs",
-    version: "3.0.0",
+    version: "3.1.0",
     requiredVersion: "0.0.1",
     description: "Merged widgets (Movies + Series) from Stremio.",
     author: "ForwardWidget User",
@@ -117,6 +117,20 @@ function safeStr(v) {
 function toISODate(v) {
     const s = safeStr(v).trim();
     return s || "";
+}
+
+// Simple concurrency limiter
+async function pMap(array, mapper, concurrency) {
+    const results = [];
+    const chunks = [];
+    for (let i = 0; i < array.length; i += concurrency) {
+        chunks.push(array.slice(i, i + concurrency));
+    }
+    for (const chunk of chunks) {
+        const chunkResults = await Promise.all(chunk.map(mapper));
+        results.push(...chunkResults);
+    }
+    return results;
 }
 
 // --- API Helpers ---
@@ -147,7 +161,11 @@ async function fetchTmdbDetail(externalId, type, language) {
 }
 
 async function formatStremioItems(metas, reqType, language) {
-    const enrichedItems = await Promise.all(metas.map(async (item) => {
+    // Limit processing to 100 items max to prevent insane loads
+    const limitedMetas = metas.slice(0, 50);
+
+    // Process 5 items at a time to prevent rate limiting
+    const enrichedItems = await pMap(limitedMetas, async (item) => {
         const stremioId = item.id;
         const mediaType = item.type || reqType;
         const isMovie = (mediaType === "movie");
@@ -186,7 +204,7 @@ async function formatStremioItems(metas, reqType, language) {
             mediaType: tmdbType,
             genreTitle: ""
         };
-    }));
+    }, 5); // Concurrency 5
 
     return enrichedItems;
 }
@@ -224,6 +242,9 @@ async function fetchSingleCatalog(catId, language) {
             if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { } }
 
             if (data && Array.isArray(data.metas)) {
+                console.log(`Loaded ${data.metas.length} items from ${cat.name}, enriching...`);
+                // Only take top 20 for speed in widget view? Should be configurable or reasonable default.
+                // 50 is reasonable for a "browse" view.
                 const items = await formatStremioItems(data.metas, cat.type, language);
                 return { title: cat.name, items };
             }
