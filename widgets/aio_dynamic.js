@@ -55,18 +55,20 @@ const MODULES = CATALOGS.map(cat => {
     };
 });
 
-// Add Custom Merge Module
+// Add Custom Merge Modules (Split by type to avoid mixing)
+
+// 1. Merged Movies
 MODULES.unshift({
-    id: "custom_merge",
-    title: "Merged Catalog (Custom)",
+    id: "custom_merge_movie",
+    title: "Merged Movies (Custom)",
     functionName: "fetchMergedList",
     sectionMode: false,
     params: [
         {
             name: "keywords",
-            title: "Keywords (comma separated)",
+            title: "Keywords",
             type: "input",
-            description: "e.g. 'Apple, Disney' or 'Movies'. Merges all matching catalogs.",
+            description: "e.g. 'Apple, Disney'. Merges matching MOVIE lists.",
             value: ""
         },
         {
@@ -74,6 +76,43 @@ MODULES.unshift({
             title: "Language",
             type: "language",
             value: "zh-CN"
+        },
+        {
+            name: "mergeType",
+            title: "Type",
+            type: "constant",
+            value: "movie",
+            hidden: true
+        }
+    ]
+});
+
+// 2. Merged Series
+MODULES.unshift({
+    id: "custom_merge_series",
+    title: "Merged TV Shows (Custom)",
+    functionName: "fetchMergedList",
+    sectionMode: false,
+    params: [
+        {
+            name: "keywords",
+            title: "Keywords",
+            type: "input",
+            description: "e.g. 'Apple, Disney'. Merges matching TV lists.",
+            value: ""
+        },
+        {
+            name: "language",
+            title: "Language",
+            type: "language",
+            value: "zh-CN"
+        },
+        {
+            name: "mergeType",
+            title: "Type",
+            type: "constant",
+            value: "series",
+            hidden: true
         }
     ]
 });
@@ -81,7 +120,7 @@ MODULES.unshift({
 var WidgetMetadata = {
     id: "forward.aio.stremio",
     title: "AIO Catalogs (Stremio)",
-    version: "2.2.0",
+    version: "2.3.0",
     requiredVersion: "0.0.1",
     description: "Browse curated lists + Custom Merge.",
     author: "ForwardWidget User",
@@ -208,26 +247,27 @@ async function fetchList(params) {
 async function fetchMergedList(params) {
     const language = safeStr(params.language || "zh-CN");
     const keywords = safeStr(params.keywords).toLowerCase().split(",").map(s => s.trim()).filter(s => s);
+    const mergeType = safeStr(params.mergeType); // 'movie' or 'series'
 
     if (keywords.length === 0) throw new Error("Please enter keywords (e.g. Apple).");
 
-    // Find matching catalogs
+    // Filter by Keyword AND Type
     const matchingCatalogs = CATALOGS.filter(cat => {
         const name = cat.name.toLowerCase();
-        return keywords.some(k => name.includes(k));
+        const typeMatch = (mergeType) ? (cat.type === mergeType) : true;
+        const keywordMatch = keywords.some(k => name.includes(k));
+        return typeMatch && keywordMatch;
     });
 
-    if (matchingCatalogs.length === 0) throw new Error("No catalogs matched your keywords.");
+    if (matchingCatalogs.length === 0) throw new Error(`No ${mergeType || ""} catalogs matched.`);
 
-    console.log(`Merging ${matchingCatalogs.length} catalogs:`, matchingCatalogs.map(c => c.name));
+    console.log(`Merging ${matchingCatalogs.length} ${mergeType} catalogs.`);
 
     // Fetch all in parallel
     const results = await Promise.all(matchingCatalogs.map(cat => fetchIndividualCatalog(cat, language)));
 
-    // Flatten
+    // Flatten and Dedup
     let allItems = results.flat();
-
-    // Deduplicate by ID
     const seen = new Set();
     const uniqueItems = [];
     for (const item of allItems) {
