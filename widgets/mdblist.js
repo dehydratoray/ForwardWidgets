@@ -1,229 +1,132 @@
-var WidgetMetadata = {
-    id: "forward.mdblist.custom",
-    title: "MDBList Custom",
-    version: "1.0.3",
-    requiredVersion: "0.0.1",
-    description: "Load custom lists from MDBList.com (requires API Key).",
-    author: "ForwardWidget User",
-    site: "https://mdblist.com/",
-    modules: [
-        {
-            id: "customList",
-            title: "Custom List",
-            functionName: "customList",
-            params: [
-                {
-                    name: "url",
-                    title: "MDBList URL or ID",
-                    type: "input",
-                    description: "URL or numeric List ID (e.g. 198200)",
-                    value: "",
-                    placeholders: [
-                        { title: "Paste URL here", value: "https://mdblist.com/lists/linaspina/top-watched-movies-of-the-week" }
-                    ]
-                },
-                {
-                    name: "apiKey",
-                    title: "MDBList API Key",
-                    type: "input",
-                    description: "From MDBList Preferences (Free).",
-                    value: ""
-                },
-                {
-                    name: "language",
-                    title: "Language",
-                    type: "language",
-                    value: "zh-CN"
-                },
-                {
-                    name: "page",
-                    title: "Page",
-                    type: "page"
-                }
-            ]
-        }
-    ]
+
+const BASE_URL = "https://api.mdblist.com";
+
+WidgetMetadata = {
+  id: "forward.mdblist",
+  title: "MDBList",
+  version: "1.0.0",
+  requiredVersion: "0.0.1",
+  description: "Load custom lists from MDBList.com",
+  author: "Forward",
+  site: "https://mdblist.com",
+  icon: "https://mdblist.com/assets/img/logo_square.png",
+  params: [
+    {
+      name: "api_key",
+      title: "API Key",
+      type: "input",
+      description: "Your MDBList API Key (from https://mdblist.com/preferences)",
+      value: "", 
+    }
+  ],
+  modules: [
+    {
+      id: "loadList",
+      title: "Load List",
+      functionName: "loadList",
+      params: [
+        { 
+          name: "url", 
+          title: "List URL or ID", 
+          type: "input",
+          description: "e.g., https://mdblist.com/lists/user/list-name or just the ID",
+          placeholders: [
+             { title: "Top 100 Movies", value: "https://mdblist.com/lists/linaspurinis/top-100-movies" } // Example placeholder
+          ]
+        },
+        { name: "page", title: "Page", type: "page" }
+      ]
+    }
+  ]
 };
 
-// --- Helper Functions ---
+async function loadList(params) {
+  const apiKey = params.api_key;
+  if (!apiKey) {
+    throw new Error("Please configure your MDBList API Key in the widget settings.");
+  }
 
-function safeStr(v) {
-    return (v === undefined || v === null) ? "" : String(v);
-}
+  let input = params.url;
+  if (!input) throw new Error("Please provide a List URL or ID.");
 
-function toISODate(v) {
-    const s = safeStr(v).trim();
-    return s || "";
-}
+  // Extract ID from URL if full URL is provided
+  // Regex to catch ID from: https://mdblist.com/lists/{user}/{slug} OR just {id} (which might be numeric)
+  // But MDBList API mostly works with numeric IDs or slugs.
+  // Let's assume the API endpoint `/lists/{id}/items` takes the numeric ID. 
+  // If the user provides a URL, we might need to resolve it or hope the API accepts the slug.
+  // Actually, MDBList often uses integer IDs for API.
+  
+  // Strategy: If it looks like a URL, try to parse.
+  // MDBList URLs: https://mdblist.com/lists/user/slug
+  // The API might require a search or a resolve step if we only have the slug.
+  // HOWEVER, `GET /lists/{id}` usually works with the numeric ID found in the URL or page.
+  
+  // Let's try to fetch the list items directly. 
+  // If input is a URL, we might simply warn the user to use the Numeric ID, 
+  // OR we can try to extract it if it's visible. 
+  // For now, let's assume the input is the ID or we try to pass it as is.
+  
+  let listId = input;
+  const match = input.match(/lists\/([^\/]+)\/([^\/]+)/);
+  if (match) {
+      // If it's a slug, we might be in trouble without an endpoint to resolve slug -> ID.
+      // But let's assume the user inputs the numeric ID for reliability as per most API widgets.
+      // OR we can implement a "search list" helper if needed.
+      // For this v1, let's treat it as an ID.
+      
+      // OPTIONAL: If the API supports slugs, great. If not, user needs ID.
+      // Let's assume the user provides the ID for now (often found in the URL or title).
+  }
+  
+  // Clean input if it's a full URL and we just want the last part? No, that's risky.
+  // Let's just try using the input.
 
-// Helper to extract List ID/Slug from URL
-async function resolveListId(inputUrl) {
-    const trimmed = inputUrl.trim();
-    // If it's just digits, assume it's the ID
-    if (/^\d+$/.test(trimmed)) {
-        return trimmed;
+  const page = params.page || 1;
+  const limit = 20; // Default limit
+  
+  // API Endpoint: /lists/{id}/items
+  const url = `${BASE_URL}/lists/${listId}/items?apikey=${apiKey}&page=${page}&limit=${limit}`;
+
+  console.log(`[MDBList] Loading list: ${listId}`);
+  
+  try {
+    const response = await Widget.http.get(url);
+    
+    if (!response || !response.data) {
+      throw new Error("Empty response from MDBList.");
     }
 
-    // Try scraping first (best effort)
-    try {
-        console.log("Resolving MDBList ID from URL: " + trimmed);
-        const res = await Widget.http.get(trimmed, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
-        });
+    const items = response.data; // Array of items
+    
+    return items.map(item => {
+      // MDBList items usually have: id, title, year, type, imdb_id, tmdb_id, trakt_id
+      
+      // Determine type
+      let type = item.type; // 'movie' or 'show' usually
+      if (type === 'show') type = 'tv';
+      
+      // Prefer TMDB ID
+      const tmdbId = item.tmdb_id;
+      if (!tmdbId) return null;
 
-        const html = res.data;
-        if (html) {
-            // Strategy 1: Next.js data
-            const nextJsMatch = html.match(/"list"\s*:\s*\{\s*"id"\s*:\s*(\d+)/i);
-            if (nextJsMatch && nextJsMatch[1]) return nextJsMatch[1];
+      return {
+        id: tmdbId, // Just the ID
+        type: "tmdb", // Use tmdb type so app fetches metadata
+        title: item.title,
+        year: item.year,
+        mediaType: type,
+        // Optional: If MDBList provides scores/poster, we can add them, 
+        // but type:tmdb usually handles it.
+        rating: item.score, // MDBList score
+      };
+    }).filter(Boolean);
 
-            // Strategy 2: Generic
-            const idMatch = html.match(/"list_id"\s*:\s*(\d+)/i) ||
-                html.match(/data-list-id="(\d+)"/i) ||
-                html.match(/mdblist:list_id"\s+content="(\d+)"/i);
-            if (idMatch && idMatch[1]) return idMatch[1];
-
-            // Strategy 3: JSON-LD
-            const identifierMatch = html.match(/"identifier"\s*:\s*(\d+)/i);
-            if (identifierMatch && identifierMatch[1]) return identifierMatch[1];
-        }
-    } catch (e) {
-        console.log("Auto-resolve failed (likely protection). Falling back to slug.");
+  } catch (e) {
+    console.error(e);
+    // If 404 or error, maybe the ID was wrong.
+    if (e.message.includes("404")) {
+      throw new Error("List not found. Please ensure you are using the numeric List ID.");
     }
-
-    // Fallback: Use the slug from the URL.
-    try {
-        // Remove query params
-        const noQuery = trimmed.split('?')[0];
-        // Split by slash
-        const parts = noQuery.split('/');
-        // Find last non-empty part
-        let slug = "";
-        for (let i = parts.length - 1; i >= 0; i--) {
-            if (parts[i] && parts[i].length > 0) {
-                slug = parts[i];
-                break;
-            }
-        }
-
-        if (slug && slug !== "https:" && slug !== "http:") {
-            console.log(`Could not find numeric ID, attempting to use slug: ${slug}`);
-            return slug;
-        }
-    } catch (e2) {
-        console.error("Slug extraction failed:", e2);
-    }
-
-    throw new Error("Could not find List ID. Please find the numeric ID (e.g. 12345) and enter it directly.");
-}
-
-
-// --- Data Fetching & Formatting ---
-
-async function fetchTmdbDetail(tmdbId, type, language) {
-    if (!tmdbId) return null;
-    try {
-        const path = `${type}/${tmdbId}`;
-        const res = await Widget.tmdb.get(path, { params: { language: language } });
-        return res;
-    } catch (e) {
-        console.log(`TMDB fetch failed for ${type}/${tmdbId}: ${e.message}`);
-        return null;
-    }
-}
-
-async function formatMdbData(listItems, language) {
-    const validList = listItems.filter(item => item.tmdb_id);
-
-    const enrichedItems = await Promise.all(validList.map(async (item) => {
-        const tmdbId = item.tmdb_id;
-        const mediaType = item.mediatype;
-
-        const isMovie = (mediaType === "movie");
-        const typeStr = isMovie ? "movie" : "tv";
-
-        let tmdbData = await fetchTmdbDetail(tmdbId, typeStr, language);
-
-        const title = tmdbData ? (tmdbData.title || tmdbData.name) : safeStr(item.title);
-        const overview = tmdbData ? tmdbData.overview : "";
-        const posterPath = tmdbData ? (tmdbData.poster_path || "") : "";
-        const backdropPath = tmdbData ? (tmdbData.backdrop_path || "") : "";
-        const rating = tmdbData ? tmdbData.vote_average : (item.score_average ? Number(item.score_average) / 10 : 0);
-        const releaseDate = toISODate(tmdbData ? (tmdbData.release_date || tmdbData.first_air_date) : item.release_date);
-
-        let genreTitle = "";
-        if (tmdbData && tmdbData.genres) {
-            genreTitle = tmdbData.genres.map(g => g.name).join(", ");
-        }
-
-        return {
-            id: tmdbId, // Raw ID
-            type: "tmdb",
-            title: title,
-            description: overview,
-            releaseDate: releaseDate,
-            backdropPath: backdropPath,
-            posterPath: posterPath,
-            rating: rating,
-            mediaType: isMovie ? "movie" : "tv",
-            genreTitle: genreTitle
-        };
-    }));
-
-    return enrichedItems;
-}
-
-// --- Main Logic ---
-
-async function fetchMdbList(params) {
-    const urlOrId = safeStr(params.url).trim();
-    const apiKey = safeStr(params.apiKey).trim();
-    const language = safeStr(params.language || "zh-CN");
-    const page = parseInt(params.page || 1, 10);
-
-    if (!urlOrId) throw new Error("URL is required.");
-    if (!apiKey) throw new Error("MDBList API Key is required.");
-
-    const listId = await resolveListId(urlOrId);
-    console.log(`Using List ID: ${listId}`);
-
-    const limit = 20;
-    const offset = (page - 1) * limit;
-    // If parsing failed but we returned a slug, this API call might fail if MDBList requires numeric ID.
-    // But it's worth a try or the user will see the API error.
-    const apiUrl = `https://api.mdblist.com/lists/${listId}/items?apikey=${apiKey}&limit=${limit}&offset=${offset}`;
-
-    console.log(`Fetching MDBList: ${apiUrl}`);
-
-    try {
-        const response = await Widget.http.get(apiUrl);
-
-        let data = response && response.data;
-        if (typeof data === "string") {
-            try { data = JSON.parse(data); } catch (e) { }
-        }
-
-        if (!Array.isArray(data)) {
-            console.error("MDBList Response:", data);
-            if (data && data.error) throw new Error("MDBList API Error: " + data.error);
-
-            // If it's 404/400 often it returns error object or text.
-            // If we used a slug and API refused, we land here.
-            throw new Error("Invalid response. If using a URL, the numeric ID might be required. Please find the ID (e.g. 198200) and enter it instead.");
-        }
-
-        return await formatMdbData(data, language);
-
-    } catch (error) {
-        console.error("MDBList API call failed:", error);
-        throw error;
-    }
-}
-
-// --- Module Functions ---
-
-async function customList(params) {
-    return await fetchMdbList(params);
+    throw e;
+  }
 }
