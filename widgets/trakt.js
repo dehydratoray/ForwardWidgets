@@ -16,7 +16,7 @@ WidgetMetadata = {
       title: "Client ID",
       type: "input",
       description: "Your Trakt API Client ID (from https://trakt.tv/oauth/applications)",
-      value: "", // User must provide this
+      value: "06b6df28ce91aafbbedb1452531ef1e18d3404777e6591eafba904b46cd4ca6e", // User must provide this
     }
   ],
   modules: [
