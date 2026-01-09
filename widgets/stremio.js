@@ -3,7 +3,7 @@ console.log("Loading Stremio Widget...");
 WidgetMetadata = {
     id: "forward.stremio.catalog",
     title: "Stremio Catalog",
-    version: "1.0.3",
+    version: "1.0.4",
     requiredVersion: "0.0.1",
     description: "Load movies and shows from any Stremio Addon",
     author: "Forward",
@@ -20,7 +20,9 @@ WidgetMetadata = {
                     title: "Addon Manifest URL",
                     type: "input",
                     description: "URL to the addon manifest",
+                    value: "https://aiometadatafortheweak.nhyira.dev/stremio/7e79368f-22da-4379-8291-45702e84bec7/manifest.json",
                     placeholders: [
+                        { title: "AIO Metadata (Custom)", value: "https://aiometadatafortheweak.nhyira.dev/stremio/7e79368f-22da-4379-8291-45702e84bec7/manifest.json" },
                         { title: "Cinemeta (Official)", value: "https://v3-cinemeta.strem.io/manifest.json" },
                         { title: "Cyberflix", value: "https://cyberflix.elfhosted.com/manifest.json" }
                     ]
@@ -39,12 +41,14 @@ WidgetMetadata = {
                     name: "catalogId",
                     title: "Catalog ID",
                     type: "input",
-                    description: "Catalog ID (e.g. top, trending)",
+                    description: "Catalog ID (check manifest). e.g. mdblist.15194 (Tom Cruise)",
                     placeholders: [
-                        { title: "Top", value: "top" },
-                        { title: "Trending", value: "trending" }
+                        { title: "Tom Cruise (AIO)", value: "mdblist.15194" },
+                        { title: "Christopher Nolan (AIO)", value: "mdblist.91024" },
+                        { title: "Top (Cinemeta)", value: "top" },
+                        { title: "Trending (Cinemeta)", value: "trending" }
                     ],
-                    defaultValue: "top"
+                    defaultValue: "mdblist.15194"
                 }
             ]
         }
@@ -84,7 +88,8 @@ async function enrichWithTmdb(items) {
                         if (tmdbResults && tmdbResults.length > 0) {
                             tmdbData = tmdbResults[0];
                         } else {
-                            console.log(`[Stremio] No TMDB match found for ${item.id} (${item.mediaType})`);
+                            // Only log misses if we really care, to reduce noise
+                            // console.log(`[Stremio] No TMDB match found for ${item.id} (${item.mediaType})`);
                         }
                     }
                 }
@@ -98,8 +103,8 @@ async function enrichWithTmdb(items) {
                     item.id = tmdbData.id; // Switch to TMDB Numeric ID
                     item.type = 'tmdb';    // Switch type to TMDB
 
-                    item.title = tmdbData.title || tmdbData.name || item.title;
-                    // Prefer TMDB images (high res, standard format)
+                    // Update metadata
+                    if (tmdbData.title || tmdbData.name) item.title = tmdbData.title || tmdbData.name;
                     if (tmdbData.poster_path) item.posterPath = tmdbData.poster_path;
                     if (tmdbData.backdrop_path) item.backdropPath = tmdbData.backdrop_path;
                     if (tmdbData.overview) item.description = tmdbData.overview;
