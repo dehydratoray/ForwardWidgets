@@ -179,15 +179,21 @@ WidgetMetadata = {
 
 // --- Helper: Enrich with TMDB Metadata ---
 async function enrichWithTmdb(items) {
-    const BATCH_SIZE = 5;
-    const results = [];
+    const CONCURRENCY = 12; // Run 12 requests in parallel for speed
+    const results = new Array(items.length); // Preserves order
+    let currentIndex = 0;
     let debugLogged = false;
 
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-        const batch = items.slice(i, i + BATCH_SIZE);
+    // The worker function picks the next available item index
+    async function worker() {
+        while (currentIndex < items.length) {
+            const i = currentIndex++; // Grab index and increment atomic-ish in single thread JS
+            const item = items[i];
 
-        const batchPromises = batch.map(async (item) => {
-            if (!item || !item.id) return item;
+            if (!item || !item.id) {
+                results[i] = item;
+                continue;
+            }
 
             try {
                 let tmdbData = null;
@@ -209,9 +215,6 @@ async function enrichWithTmdb(items) {
                         const tmdbResults = item.mediaType === 'movie' ? response.movie_results : response.tv_results;
                         if (tmdbResults && tmdbResults.length > 0) {
                             tmdbData = tmdbResults[0];
-                        } else {
-                            // Only log misses if we really care, to reduce noise
-                            // console.log(`[Stremio] No TMDB match found for ${item.id} (${item.mediaType})`);
                         }
                     }
                 }
@@ -233,21 +236,26 @@ async function enrichWithTmdb(items) {
                     if (tmdbData.vote_average) item.rating = tmdbData.vote_average;
                     if (tmdbData.release_date || tmdbData.first_air_date) item.releaseDate = tmdbData.release_date || tmdbData.first_air_date;
 
-                    console.log(`[Stremio] Resolved ${item.sourceType} ${item.id} -> TMDB ${tmdbData.id}`);
+                    // console.log(`[Stremio] Resolved ${item.sourceType} ${item.id} -> TMDB ${tmdbData.id}`);
                 } else {
-                    console.warn(`[Stremio] Keeping original item for ${item.id} (Enrichment failed)`);
+                    // console.warn(`[Stremio] Keeping original item for ${item.id} (Enrichment failed)`);
                 }
 
+                results[i] = item;
             } catch (e) {
                 console.warn(`[Stremio] Failed to enrich item ${item.id}:`, e);
+                results[i] = item; // Return original on error
             }
-            return item;
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults);
+        }
     }
 
+    // Start pool of workers
+    const workers = [];
+    for (let k = 0; k < CONCURRENCY; k++) {
+        workers.push(worker());
+    }
+
+    await Promise.all(workers);
     return results;
 }
 
