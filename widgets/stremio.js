@@ -55,6 +55,7 @@ WidgetMetadata = {
 async function enrichWithTmdb(items) {
     const BATCH_SIZE = 5;
     const results = [];
+    let debugLogged = false;
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batch = items.slice(i, i + BATCH_SIZE);
@@ -72,19 +73,23 @@ async function enrichWithTmdb(items) {
                         params: { external_source: 'imdb_id' }
                     });
 
+                    if (!debugLogged && response) {
+                        console.log("[Stremio] Sample TMDB Response Keys:", Object.keys(response));
+                        debugLogged = true;
+                    }
+
                     if (response) {
                         // Check movie_results or tv_results
-                        const results = item.mediaType === 'movie' ? response.movie_results : response.tv_results;
-                        if (results && results.length > 0) {
-                            tmdbData = results[0];
+                        const tmdbResults = item.mediaType === 'movie' ? response.movie_results : response.tv_results;
+                        if (tmdbResults && tmdbResults.length > 0) {
+                            tmdbData = tmdbResults[0];
+                        } else {
+                            console.log(`[Stremio] No TMDB match found for ${item.id} (${item.mediaType})`);
                         }
                     }
                 }
                 // Case 2: Already has TMDB ID (if we supported that)
                 else if (item.sourceType === 'tmdb') {
-                    // Already correct, but could fetch details if needed. 
-                    // for now, we assume if we have TMDB data we might want to refresh it or just use it.
-                    // But Stremio mostly gives IMDB.
                     tmdbData = await Widget.tmdb.get(`${item.mediaType}/${item.id}`, {});
                 }
 
@@ -100,6 +105,10 @@ async function enrichWithTmdb(items) {
                     if (tmdbData.overview) item.description = tmdbData.overview;
                     if (tmdbData.vote_average) item.rating = tmdbData.vote_average;
                     if (tmdbData.release_date || tmdbData.first_air_date) item.releaseDate = tmdbData.release_date || tmdbData.first_air_date;
+
+                    console.log(`[Stremio] Resolved ${item.sourceType} ${item.id} -> TMDB ${tmdbData.id}`);
+                } else {
+                    console.warn(`[Stremio] Keeping original item for ${item.id} (Enrichment failed)`);
                 }
 
             } catch (e) {
