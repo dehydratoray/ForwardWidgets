@@ -1,7 +1,7 @@
-const WidgetMetadata = {
+WidgetMetadata = {
     id: "forward.stremio.catalog",
     title: "Stremio Catalog",
-    version: "1.0.0",
+    version: "1.0.1",
     requiredVersion: "0.0.1",
     description: "Load movies and shows from any Stremio Addon",
     author: "Forward",
@@ -26,8 +26,8 @@ const WidgetMetadata = {
                 {
                     name: "type",
                     title: "Type",
-                    type: "select",
-                    options: [
+                    type: "enumeration",
+                    enumOptions: [
                         { title: "Movies", value: "movie" },
                         { title: "TV Shows", value: "series" }
                     ],
