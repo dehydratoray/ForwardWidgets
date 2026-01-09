@@ -3,9 +3,9 @@ console.log("Loading Stremio Widget...");
 WidgetMetadata = {
     id: "forward.stremio.catalog",
     title: "Stremio Catalog",
-    version: "1.0.5",
+    version: "1.0.6",
     requiredVersion: "0.0.1",
-    description: "Load movies and shows from AIO Metadata Addon",
+    description: "Load movies and shows from AIO Metadata Addon (supports merged views)",
     author: "Forward",
     site: "https://stremio.com",
     icon: "https://stremio.com/website/stremio-logo-small.png",
@@ -34,15 +34,17 @@ WidgetMetadata = {
                         { title: "Movies", value: "movie" },
                         { title: "TV Shows", value: "series" }
                     ],
-                    defaultValue: "movie"
+                    defaultValue: "movie",
+                    description: "Media Type (Ignored for Merged lists)"
                 },
                 {
                     name: "catalogId",
                     title: "Catalog",
                     type: "enumeration",
-                    description: "Select a catalog from the AIO addon",
+                    description: "Select a catalog. 'Merged' lists include both Movies & TV.",
                     defaultValue: "mdblist.15194",
                     enumOptions: [
+                        // --- Single Catalogs ---
                         { "title": "Top Movies - Paramount Plus (Movies)", "value": "mdblist.89366" },
                         { "title": "Top TV Shows - Paramount Plus (TV)", "value": "mdblist.89374" },
                         { "title": "Peacock Movies (Movies)", "value": "mdblist.83487" },
@@ -144,7 +146,25 @@ WidgetMetadata = {
                         { "title": "Martin Scorsese (Movies)", "value": "mdblist.91025" },
                         { "title": "Paul Thomas Anderson (Movies)", "value": "mdblist.91032" },
                         { "title": "Stanley Kubrick (Movies)", "value": "mdblist.91028" },
-                        { "title": "Steven Spielberg (Movies)", "value": "mdblist.91027" }
+                        { "title": "Steven Spielberg (Movies)", "value": "mdblist.91027" },
+
+                        // --- Merged Catalogs (Beneath Everything) ---
+                        { "title": "Merged: Disney+ (Movies & TV)", "value": "mdblist.86945|mdblist.86946" },
+                        { "title": "Merged: HBO Max (Movies & TV)", "value": "mdblist.89392|mdblist.89310" },
+                        { "title": "Merged: Hulu (Movies & TV)", "value": "mdblist.88326|mdblist.88327" },
+                        { "title": "Merged: Netflix (Movies & TV)", "value": "mdblist.86628|mdblist.86620" },
+                        { "title": "Merged: Paramount+ (Movies & TV)", "value": "mdblist.89366|mdblist.89374" },
+                        { "title": "Merged: Peacock (Movies & TV)", "value": "mdblist.83487|mdblist.83484" },
+                        { "title": "Merged: Amazon Prime (Movies & TV)", "value": "mdblist.86755|mdblist.86753" },
+                        { "title": "Merged: Apple TV+ (Movies & TV)", "value": "mdblist.86626|mdblist.86625" },
+                        { "title": "Merged: Action (Movies & TV)", "value": "mdblist.91211|mdblist.91213" },
+                        { "title": "Merged: Animated (Movies & TV)", "value": "mdblist.116037|mdblist.116038" },
+                        { "title": "Merged: Comedy (Movies & TV)", "value": "mdblist.91223|mdblist.91224" },
+                        { "title": "Merged: Crime (Movies & TV)", "value": "mdblist.3108|mdblist.3126" },
+                        { "title": "Merged: Drama (Movies & TV)", "value": "mdblist.91296|mdblist.91297" },
+                        { "title": "Merged: Horror (Movies & TV)", "value": "mdblist.91215|mdblist.91217" },
+                        { "title": "Merged: Sci-Fi (Movies & TV)", "value": "mdblist.91220|mdblist.91221" },
+                        { "title": "Merged: Thriller (Movies & TV)", "value": "mdblist.91893|mdblist.91894" }
                     ]
                 }
             ]
@@ -227,31 +247,17 @@ async function enrichWithTmdb(items) {
 }
 
 
-async function loadCatalog(params) {
-    console.log("Stremio loadCatalog called with:", JSON.stringify(params));
-    const { manifestUrl, type, catalogId } = params;
-
-    if (!manifestUrl) throw new Error("Manifest URL is required");
-
-    // Remove /manifest.json to get base URL
-    const baseUrl = manifestUrl.replace('/manifest.json', '');
-    const url = `${baseUrl}/catalog/${type}/${catalogId}.json`;
-
-    console.log(`[Stremio] Fetching catalog: ${url}`);
+// --- Helper: Fetch Single Catalog ---
+async function fetchCatalog(baseUrl, type, id) {
+    const url = `${baseUrl}/catalog/${type}/${id}.json`;
+    console.log(`[Stremio] Fetching ${type}: ${url}`);
 
     try {
         const response = await Widget.http.get(url);
+        // Handle wrapper
+        const metas = (response.data && response.data.metas) ? response.data.metas : (response.metas || []);
 
-        // Fix: Widget.http.get returns { data: ... }
-        if (!response || !response.data || !response.data.metas) {
-            console.error("[Stremio] Invalid response", response);
-            throw new Error("Invalid response from Stremio addon.");
-        }
-
-        const metas = response.data.metas;
-        console.log(`[Stremio] Found ${metas.length} items`);
-
-        const rawItems = metas.map(meta => {
+        return metas.map(meta => {
             let itemType = 'movie';
             if (type === 'series' || meta.type === 'series') itemType = 'tv';
 
@@ -263,7 +269,6 @@ async function loadCatalog(params) {
                 backdropPath: meta.background,
                 description: meta.description,
                 rating: meta.imdbRating,
-                // Helper prop to track source
                 sourceType: 'unknown'
             };
 
@@ -278,7 +283,7 @@ async function loadCatalog(params) {
                     item.sourceType = 'tmdb';
                 } else {
                     item.id = meta.id;
-                    item.type = 'imdb'; // Fallback
+                    item.type = 'imdb';
                     item.sourceType = 'imdb';
                 }
             } else {
@@ -286,12 +291,48 @@ async function loadCatalog(params) {
             }
             return item;
         }).filter(Boolean);
-
-        // Enrich with TMDB data
-        return await enrichWithTmdb(rawItems);
-
     } catch (e) {
-        console.error(`[Stremio] Error:`, e);
-        throw new Error(`Failed to load Stremio catalog: ${e.message}`);
+        console.error(`[Stremio] Error fetching ${type} ${id}:`, e);
+        return [];
+    }
+}
+
+
+async function loadCatalog(params) {
+    console.log("Stremio loadCatalog called with:", JSON.stringify(params));
+    const { manifestUrl, type, catalogId } = params;
+
+    if (!manifestUrl) throw new Error("Manifest URL is required");
+    const baseUrl = manifestUrl.replace('/manifest.json', '');
+
+    // Check for Merged Catalog (contains Pipe |)
+    if (catalogId.includes('|')) {
+        const [_movie, _series] = catalogId.split('|'); // Assuming format movieId|seriesId
+        // We ignore the 'type' param since we are forcing both
+        console.log(`[Stremio] Detected Merged Request: ${_movie} & ${_series}`);
+
+        const [movies, shows] = await Promise.all([
+            fetchCatalog(baseUrl, 'movie', _movie),
+            fetchCatalog(baseUrl, 'series', _series)
+        ]);
+
+        console.log(`[Stremio] Merged Results: ${movies.length} movies, ${shows.length} shows`);
+
+        // Interleave results
+        const combined = [];
+        const maxLength = Math.max(movies.length, shows.length);
+        for (let i = 0; i < maxLength; i++) {
+            if (i < movies.length) combined.push(movies[i]);
+            if (i < shows.length) combined.push(shows[i]);
+        }
+
+        return await enrichWithTmdb(combined);
+    }
+
+    // Standard Single Catalog
+    else {
+        console.log(`[Stremio] Standard Request: ${type} / ${catalogId}`);
+        const items = await fetchCatalog(baseUrl, type, catalogId);
+        return await enrichWithTmdb(items);
     }
 }
