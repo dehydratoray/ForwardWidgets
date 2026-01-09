@@ -3,7 +3,7 @@ console.log("Loading Stremio Widget...");
 WidgetMetadata = {
     id: "forward.stremio.catalog",
     title: "Stremio Catalog",
-    version: "1.0.6",
+    version: "1.0.7",
     requiredVersion: "0.0.1",
     description: "Load movies and shows from AIO Metadata Addon (supports merged views)",
     author: "Forward",
@@ -25,6 +25,11 @@ WidgetMetadata = {
                         { title: "AIO Metadata (Custom)", value: "https://aiometadatafortheweak.nhyira.dev/stremio/7e79368f-22da-4379-8291-45702e84bec7/manifest.json" },
                         { title: "Cinemeta (Official)", value: "https://v3-cinemeta.strem.io/manifest.json" }
                     ]
+                },
+                {
+                    name: "page",
+                    title: "Page",
+                    type: "page"
                 },
                 {
                     name: "type",
@@ -248,8 +253,13 @@ async function enrichWithTmdb(items) {
 
 
 // --- Helper: Fetch Single Catalog ---
-async function fetchCatalog(baseUrl, type, id) {
-    const url = `${baseUrl}/catalog/${type}/${id}.json`;
+async function fetchCatalog(baseUrl, type, id, skip = 0) {
+    let url = `${baseUrl}/catalog/${type}/${id}`;
+    if (skip > 0) {
+        url += `/skip=${skip}`;
+    }
+    url += `.json`;
+
     console.log(`[Stremio] Fetching ${type}: ${url}`);
 
     try {
@@ -300,7 +310,9 @@ async function fetchCatalog(baseUrl, type, id) {
 
 async function loadCatalog(params) {
     console.log("Stremio loadCatalog called with:", JSON.stringify(params));
-    const { manifestUrl, type, catalogId } = params;
+    const { manifestUrl, type, catalogId, page } = params;
+    const skip = (page && page > 1) ? (page - 1) * 50 : 0;
+    // Assuming default Stremio item count is ~50-100. 50 is a safe bet based on user report.
 
     if (!manifestUrl) throw new Error("Manifest URL is required");
     const baseUrl = manifestUrl.replace('/manifest.json', '');
@@ -309,11 +321,11 @@ async function loadCatalog(params) {
     if (catalogId.includes('|')) {
         const [_movie, _series] = catalogId.split('|'); // Assuming format movieId|seriesId
         // We ignore the 'type' param since we are forcing both
-        console.log(`[Stremio] Detected Merged Request: ${_movie} & ${_series}`);
+        console.log(`[Stremio] Detected Merged Request: ${_movie} & ${_series} (Skip: ${skip})`);
 
         const [movies, shows] = await Promise.all([
-            fetchCatalog(baseUrl, 'movie', _movie),
-            fetchCatalog(baseUrl, 'series', _series)
+            fetchCatalog(baseUrl, 'movie', _movie, skip),
+            fetchCatalog(baseUrl, 'series', _series, skip)
         ]);
 
         console.log(`[Stremio] Merged Results: ${movies.length} movies, ${shows.length} shows`);
@@ -331,8 +343,8 @@ async function loadCatalog(params) {
 
     // Standard Single Catalog
     else {
-        console.log(`[Stremio] Standard Request: ${type} / ${catalogId}`);
-        const items = await fetchCatalog(baseUrl, type, catalogId);
+        console.log(`[Stremio] Standard Request: ${type} / ${catalogId} (Skip: ${skip})`);
+        const items = await fetchCatalog(baseUrl, type, catalogId, skip);
         return await enrichWithTmdb(items);
     }
 }
