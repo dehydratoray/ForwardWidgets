@@ -131,12 +131,13 @@ async function loadCatalog(params) {
     try {
         const response = await Widget.http.get(url);
 
-        if (!response || !response.metas) {
+        // Fix: Widget.http.get returns { data: ... }
+        if (!response || !response.data || !response.data.metas) {
             console.error("[Stremio] Invalid response", response);
             throw new Error("Invalid response from Stremio addon.");
         }
 
-        const metas = response.metas;
+        const metas = response.data.metas;
         console.log(`[Stremio] Found ${metas.length} items`);
 
         const rawItems = metas.map(meta => {
