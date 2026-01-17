@@ -1,76 +1,64 @@
 /**
  * Stremio Client Widget
- * Consumes Stremio Addon APIs to provide streams.
+ * Simplified to match demo.js structure.
  */
 WidgetMetadata = {
-    id: "forward.stremio.stream",
-    title: "Stremio Stream",
+    id: "forward.stremio.simple",
+    title: "Stremio AIO",
     icon: "https://stremio.com/website/stremio-logo-small.png",
     version: "1.0.0",
     requiredVersion: "0.0.1",
-    description: "Play videos from Stremio Addons (Torrentio, etc).",
+    description: "Plays streams from AIO Lootah Addon.",
     author: "Forward User",
     site: "https://stremio.com",
     modules: [
         {
-            id: "loadStream",
-            title: "Load from Stremio Addon",
-            functionName: "loadStream",
+            id: "loadResource", // Changed ID to match demo.js pattern (optional, but consistent)
+            title: "Load Stream",
+            functionName: "loadResource", // Changed function name to match demo.js pattern
             type: "stream",
-            params: [
-                {
-                    name: "addonUrl",
-                    title: "Addon URL",
-                    type: "input",
-                    description: "Stremio Addon URL",
-                    value: "https://aio.lootah.app/stremio/39cf7e85-816f-41a5-aeee-175eceb61118/eyJpIjoiYzVjUHFsN1RsWVJxRjdQczIwNU5BUT09IiwiZSI6IlNLTDVyaWYvTzlSN3FMUHNMU1dRRDY5ZitVMHI0Vnl6T0RvODFDQjUweFU9IiwidCI6ImEifQ/manifest.json"
-                }
-            ]
+            params: [] // No user params, just like demo.js
         }
     ]
 };
 
-async function loadStream(params) {
-    const { imdbId, tmdbId, id, type, season, episode, addonUrl } = params;
+async function loadResource(params) {
+    console.log("Stremio Simple v1.0 Params:", JSON.stringify(params));
 
-    console.log("Stremio Widget v1.2 Params:", JSON.stringify(params));
+    // Hardcoded URL as requested
+    const ADDON_URL = "https://aio.lootah.app/stremio/39cf7e85-816f-41a5-aeee-175eceb61118/eyJpIjoiYzVjUHFsN1RsWVJxRjdQczIwNU5BUT09IiwiZSI6IlNLTDVyaWYvTzlSN3FMUHNMU1dRRDY5ZitVMHI0Vnl6T0RvODFDQjUweFU9IiwidCI6ImEifQ/manifest.json";
 
-    // 1. Validate ID
-    // Some Stremio addons (like Torrentio/AIO) support TMDB IDs natively as `tmdb:123`
-    // If no IMDB ID, we try TMDB.
+    const { imdbId, tmdbId, id, type, season, episode } = params;
+
+    // 1. Resolve ID
     let stremioId = imdbId;
     let isTmdb = false;
 
+    // Logic: Try IMDB first, then TMDB, then generic ID
     if (!stremioId) {
         if (tmdbId) {
             stremioId = tmdbId;
             isTmdb = true;
         } else if (id) {
-            // Fallback logic
             if (id.startsWith('tt')) {
-                stremioId = id; // Looks like IMDB
+                stremioId = id;
             } else if (/^\d+$/.test(id)) {
-                stremioId = id; // Looks like numeric TMDB ID
+                stremioId = id;
                 isTmdb = true;
             } else {
-                // Unknown format, try using it as-is (maybe it's already tmdb:123 or a slug)
                 stremioId = id;
             }
         }
     }
 
     if (!stremioId) {
-        throw new Error(`Stremio Error: No ID found. Input params: ${JSON.stringify(params)}`);
+        console.error("No ID found in params:", params);
+        // Return empty array instead of throwing error to be safe
+        return [];
     }
 
-    // 2. Construct Stream ID
-    // IMDB Movie: tt1234567
-    // IMDB Series: tt1234567:1:1
-    // TMDB Movie: tmdb:123
-    // TMDB Series: tmdb:123:1:1
-
+    // 2. Format ID for Stremio
     let streamId = stremioId;
-
     if (isTmdb && !String(stremioId).startsWith('tmdb:')) {
         streamId = `tmdb:${stremioId}`;
     }
@@ -79,17 +67,14 @@ async function loadStream(params) {
         streamId = `${streamId}:${season}:${episode}`;
     }
 
-    // 3. Prepare Addon URL
-    // Strip /manifest.json if present to get base URL
-    let baseUrl = (addonUrl || "https://aio.lootah.app/stremio/39cf7e85-816f-41a5-aeee-175eceb61118/eyJpIjoiYzVjUHFsN1RsWVJxRjdQczIwNU5BUT09IiwiZSI6IlNLTDVyaWYvTzlSN3FMUHNMU1dRRDY5ZitVMHI0Vnl6T0RvODFDQjUweFU9IiwidCI6ImEifQ/manifest.json").replace('/manifest.json', '');
+    // 3. Prepare URL
+    let baseUrl = ADDON_URL.replace('/manifest.json', '');
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
-    // 4. Construct Request URL
-    // {addonUrl}/stream/{type}/{id}.json
     let stremioType = type === 'tv' ? 'series' : 'movie';
     const url = `${baseUrl}/stream/${stremioType}/${streamId}.json`;
 
-    console.log(`Fetching streams from: ${url}`);
+    console.log(`Fetching: ${url}`);
 
     try {
         const response = await Widget.http.get(url, {
@@ -99,26 +84,17 @@ async function loadStream(params) {
         const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
 
         if (!data.streams || !Array.isArray(data.streams)) {
-            console.log("No streams found in response", data);
             return [];
         }
 
-        // 5. Map to Forward Video format
         return data.streams.map(stream => ({
-            name: stream.title || stream.name || "Stremio Stream",
-            description: [
-                stream.name,
-                stream.title,
-                stream.behaviorHints ? JSON.stringify(stream.behaviorHints) : ""
-            ].filter(Boolean).join('\n'),
-            url: stream.url || "",
-            // Note: Forward might not support InfoHash/Magnet directly unless specified in their player.
-            // If the addon returns magnet links (like Torrentio often does without Debrid), 
-            // this might fail if the player doesn't support them.
+            name: stream.title || stream.name || "Stream",
+            description: (stream.title || stream.name || "") + "\n" + (stream.behaviorHints ? JSON.stringify(stream.behaviorHints) : ""),
+            url: stream.url || ""
         }));
 
     } catch (e) {
-        console.error("Stream fetch failed", e);
-        throw e;
+        console.error("Error fetching streams:", e);
+        return [];
     }
 }
