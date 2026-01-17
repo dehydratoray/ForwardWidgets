@@ -4,7 +4,6 @@ WidgetMetadata = {
     title: "Trakt Watched & Personalized Recommendations",
     modules: [
         {
-    {
             title: "Trakt Watched",
             requiresWebView: false,
             functionName: "loadInterestItems",
@@ -51,7 +50,7 @@ WidgetMetadata = {
                 },
                 {
                     name: "page",
-                    title: "页码",
+                    title: "Page",
                     type: "page"
                 },
             ],
@@ -90,7 +89,6 @@ WidgetMetadata = {
                 },
             ],
         },
-        {
         {
             title: "Trakt List",
             requiresWebView: false,
