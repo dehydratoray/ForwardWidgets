@@ -1,164 +1,279 @@
 /**
- * ForwardWidget for Generic Stremio Addons (AIOStream / Torrentio / etc)
- * 
- * This widget acts as a client bridge. It takes Forward's media requests,
- * translates them into Stremio's API format, queries your configured Addon URL,
- * and returns the streamable links (HTTP/Debrid/DAV) to Forward.
+ * ForwardWidgets / AIOStreams Best-Practice Template
+ * - type: stream | subtitle
+ * - returns: Array only
+ * - safe: timeouts, validation, dedupe, sorting
  */
 
-WidgetMetadata = {
-  id: "forward.stremio.client",
-  title: "Stremio/AIOStream Client",
+const WidgetMetadata = {
+  id: "forward.meta.bestpractice",
+  title: "BEST PRACTICE",
+  icon: "https://assets.vvebo.vip/scripts/icon.png",
   version: "1.0.0",
   requiredVersion: "0.0.1",
-  description: "Connects to any Stremio-compatible Addon (AIOStream, Torrentio, etc) to fetch streams.",
-  author: "ForwardUser",
-  icon: "https://stremio.com/website/stremio-logo-small.png", 
+  description: "AIOStreams-friendly streams & subtitles template",
+  author: "Forward",
+  site: "https://github.com/InchStudio/ForwardWidgets",
   modules: [
     {
       id: "loadResource",
-      title: "Fetch Streams",
-      functionName: "loadStremioStreams",
+      title: "Load Resources",
+      functionName: "loadResource",
       type: "stream",
-      params: [
-        {
-          name: "addonUrl",
-          title: "Addon Base URL",
-          type: "input",
-          description: "The base URL of your addon (e.g. https://my-aio-stream.com/manifest.json or just the domain)",
-          value: "" 
-        }
-      ],
+      params: [],
+    },
+    {
+      id: "loadSubtitle",
+      title: "Load Subtitles",
+      functionName: "loadSubtitle",
+      type: "subtitle",
+      params: [],
     },
   ],
 };
 
-async function loadStremioStreams(params) {
-  const { type, season, episode, addonUrl } = params;
-  let { imdbId, tmdbId } = params;
+/* ----------------------------- Helpers ----------------------------- */
 
-  console.log(`[StremioClient] Request Params:`, JSON.stringify(params));
+function normalizeParams(params = {}) {
+  const p = {
+    tmdbId: params.tmdbId ?? null,
+    imdbId: params.imdbId ?? null,
+    mediaId: params.id ?? null,
+    type: params.type ?? null, // "tv" | "movie"
+    seriesName: params.seriesName ?? null,
+    episodeName: params.episodeName ?? null,
+    season: params.season ?? null,
+    episode: params.episode ?? null,
+    link: params.link ?? null,
+  };
 
-  if (!addonUrl) {
-    throw new Error("Addon URL is missing. Please configure it in the widget settings.");
-  }
-  
-  // --- 0. ID Resolution (TMDB -> IMDB) ---
-  // If we don't have an IMDb ID but have a TMDB ID, try to convert it.
-  if (!imdbId && tmdbId) {
-    console.log(`[StremioClient] Missing IMDb ID, attempting conversion from TMDB ID: ${tmdbId}`);
-    try {
-      // Use Widget.tmdb if available, otherwise fallback or fail
-      if (Widget.tmdb) {
-        const endpoint = type === 'tv' ? `tv/${tmdbId}/external_ids` : `movie/${tmdbId}/external_ids`;
-        const resp = await Widget.tmdb.get(endpoint);
-        if (resp && resp.imdb_id) {
-          imdbId = resp.imdb_id;
-          console.log(`[StremioClient] Converted TMDB ${tmdbId} -> IMDb ${imdbId}`);
-        } else {
-          console.warn(`[StremioClient] Could not find IMDb ID for TMDB ${tmdbId}`);
-        }
-      }
-    } catch (e) {
-      console.warn(`[StremioClient] Error converting TMDB to IMDb: ${e.message}`);
-    }
+  // normalize numbers
+  if (typeof p.season === "string" && p.season.trim() !== "") p.season = Number(p.season);
+  if (typeof p.episode === "string" && p.episode.trim() !== "") p.episode = Number(p.episode);
+
+  const isTv = p.type === "tv";
+  const isMovie = p.type === "movie";
+
+  // For TV, require season/episode to avoid wrong matching
+  if (isTv && (!Number.isFinite(p.season) || !Number.isFinite(p.episode))) {
+    return { ok: false, reason: "TV request missing season/episode", p };
   }
 
-  if (!imdbId) {
-    console.warn("[StremioClient] No IMDB ID provided or found. Stremio addons require IMDB IDs.");
-    // Some addons might support TMDB IDs (e.g. tmdb:123), but standard Stremio protocol prefers IMDb.
-    // We will try with TMDB ID as a fallback if the addon supports it, but it's rare.
-    if (tmdbId) {
-       console.log("[StremioClient] Trying with TMDB ID prefix...");
-       // Common alias format for some addons: tmdb:123
-       // But typically Cinemeta (standard) only does IMDb.
-       // We'll return empty here to avoid invalid requests unless we want to try 'tmdb:123'
-       return [];
-    }
+  if (!isTv && !isMovie) {
+    return { ok: false, reason: "Unknown media type", p };
+  }
+
+  // prefer tmdbId then imdbId then mediaId
+  const key = p.tmdbId || p.imdbId || p.mediaId;
+  if (!key) {
+    return { ok: false, reason: "No tmdbId/imdbId/id provided", p };
+  }
+
+  return { ok: true, p };
+}
+
+function withTimeout(promise, ms = 10000) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+
+  const timeout = new Promise((_, reject) => {
+    const t = setTimeout(() => {
+      if (controller) controller.abort();
+      reject(new Error(`Timeout after ${ms}ms`));
+      clearTimeout(t);
+    }, ms);
+  });
+
+  // If fetch supports signal, use it (optional)
+  if (controller && promise && typeof promise === "object" && typeof promise.then === "function") {
+    return Promise.race([promise, timeout]);
+  }
+  return Promise.race([promise, timeout]);
+}
+
+function safeUrl(u) {
+  try {
+    const url = new URL(u);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Builds AIOStreams-friendly description tokens that are easy to match via SEL/regex.
+ * Keep tokens consistent (2160p, 1080p, DV, HDR10, HEVC/x265, etc.)
+ */
+function buildDescription(meta) {
+  const lines = [];
+
+  // line 1: the "token line" (best for regex)
+  const tokens = [
+    meta.resolution,          // e.g. "2160p"
+    meta.codec,               // e.g. "HEVC/x265"
+    meta.hdr,                 // e.g. "DV" or "HDR10"
+    meta.audio,               // e.g. "TrueHD Atmos 7.1"
+  ].filter(Boolean);
+
+  if (tokens.length) lines.push(tokens.join(" | "));
+
+  if (meta.source) lines.push(`Source: ${meta.source}`);
+  if (Number.isFinite(meta.seeds)) lines.push(`Seeds: ${meta.seeds}`);
+  if (meta.sizeGB) lines.push(`Size: ${meta.sizeGB} GB`);
+  if (meta.provider) lines.push(`Provider: ${meta.provider}`);
+  if (meta.tier) lines.push(`Tier: ${meta.tier}`); // if you use tiers: "Tier 1" / "Tier 2"
+
+  return lines.join("\n");
+}
+
+/* Sorting: resolution > hdr > audio > seeds > smaller size (optional) */
+function scoreStream(s) {
+  const text = `${s.name || ""} ${s.description || ""}`.toUpperCase();
+
+  const resScore =
+    text.includes("2160P") || text.includes("4K") ? 300 :
+    text.includes("1080P") ? 200 :
+    text.includes("720P")  ? 100 : 0;
+
+  const hdrScore =
+    text.includes(" DV ") || text.includes("DOLBY VISION") ? 60 :
+    text.includes("HDR10+") ? 55 :
+    text.includes("HDR10") ? 50 :
+    text.includes("HDR") ? 40 : 0;
+
+  const audioScore =
+    (text.includes("TRUEHD") && text.includes("ATMOS")) ? 40 :
+    text.includes("ATMOS") ? 35 :
+    text.includes("DTS-HD") || text.includes("DTSHD") ? 30 :
+    text.includes("DTS") ? 20 :
+    text.includes("AAC") ? 10 : 0;
+
+  // parse seeds/size if present in description
+  let seeds = 0;
+  const mSeeds = (s.description || "").match(/Seeds:\s*(\d+)/i);
+  if (mSeeds) seeds = Number(mSeeds[1]) || 0;
+
+  let sizePenalty = 0;
+  const mSize = (s.description || "").match(/Size:\s*([\d.]+)\s*GB/i);
+  if (mSize) sizePenalty = Number(mSize[1]) || 0;
+
+  return resScore + hdrScore + audioScore + Math.min(seeds, 999) * 0.01 - sizePenalty * 0.02;
+}
+
+function dedupeByUrl(items) {
+  const seen = new Set();
+  const out = [];
+  for (const it of items) {
+    const u = it && it.url;
+    if (!u || !safeUrl(u)) continue;
+    if (seen.has(u)) continue;
+    seen.add(u);
+    out.push(it);
+  }
+  return out;
+}
+
+/* ----------------------------- Implementations ----------------------------- */
+
+async function loadResource(params) {
+  const { ok, p, reason } = normalizeParams(params);
+  if (!ok) return []; // best practice: return empty list, don't crash
+
+  try {
+    // Example: replace this with your real upstream(s)
+    // Use withTimeout(fetch(...), 10000) for network calls
+
+    const provider = "MyWidget";
+
+    // DEMO outputs (replace with real resolver results)
+    const items = [
+      {
+        name: "MyWidget • 2160p (DV)",
+        description: buildDescription({
+          resolution: "2160p",
+          codec: "HEVC/x265",
+          hdr: "DV",
+          audio: "TrueHD Atmos 7.1",
+          source: "WEB-DL",
+          seeds: 420,
+          sizeGB: 18.2,
+          provider,
+          tier: "Tier 1",
+        }),
+        url: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+      },
+      {
+        name: "MyWidget • 2160p (HDR10)",
+        description: buildDescription({
+          resolution: "2160p",
+          codec: "HEVC/x265",
+          hdr: "HDR10",
+          audio: "DTS 5.1",
+          source: "WEB-DL",
+          seeds: 210,
+          sizeGB: 14.6,
+          provider,
+          tier: "Tier 2",
+        }),
+        url: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+      },
+      {
+        name: "MyWidget • 1080p",
+        description: buildDescription({
+          resolution: "1080p",
+          codec: "AVC/x264",
+          hdr: "SDR",
+          audio: "AAC 2.0",
+          source: "WEBRip",
+          seeds: 900,
+          sizeGB: 3.1,
+          provider,
+          tier: "Tier 3",
+        }),
+        url: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+      },
+    ];
+
+    const cleaned = dedupeByUrl(items).sort((a, b) => scoreStream(b) - scoreStream(a));
+
+    // OPTIONAL: if TV, you could append SxxEyy tags to name/description for clarity
+    // if (p.type === "tv") { ... }
+
+    return cleaned;
+  } catch (e) {
+    // best practice: swallow errors, return empty array
     return [];
   }
+}
 
-  // --- 1. ID Formatting ---
-  // Stremio expects:
-  // Movie: "tt1234567"
-  // Series: "tt1234567:1:2" (imdbId:season:episode)
-  let stremioId = imdbId;
-  let stremioType = type;
+async function loadSubtitle(params) {
+  const { ok, p } = normalizeParams(params);
+  if (!ok) return [];
 
-  if (type === 'tv') {
-    stremioType = 'series'; // Stremio uses 'series' instead of 'tv'
-    stremioId = `${imdbId}:${season}:${episode}`;
-  }
-
-  // --- 2. URL Construction ---
-  // Standard Stremio Addon Protocol: {baseUrl}/stream/{type}/{id}.json
-  
-  // Clean the user input: remove 'manifest.json' and trailing slashes
-  let baseUrl = addonUrl.trim();
-  if (baseUrl.endsWith('manifest.json')) {
-    baseUrl = baseUrl.replace('/manifest.json', '');
-  }
-  baseUrl = baseUrl.replace(/\/+$/, ''); // Remove trailing slashes
-
-  const requestUrl = `${baseUrl}/stream/${stremioType}/${stremioId}.json`;
-
-  console.log(`[StremioClient] Requesting: ${requestUrl}`);
-
-  // --- 3. Fetching ---
   try {
-    const response = await Widget.http.get(requestUrl, {
-      headers: {
-        "User-Agent": "ForwardWidgets/1.0.0",
-        "Accept": "application/json"
-      }
-    });
+    // Replace with your real subtitle fetch logic
+    const subs = [
+      {
+        id: "sub-en-1",
+        title: "English (SRT) • MyWidget",
+        lang: "en",
+        count: 100, // if this is rating/downloads, reflect it in title/description in your system
+        url: "https://dl.subhd.tv/2025/08/1754195078288.srt",
+      },
+    ];
 
-    const data = response.data;
-    console.log(`[StremioClient] Response Status: ${response.status}`);
-
-    // Validation
-    if (!data || !data.streams || !Array.isArray(data.streams)) {
-      console.log("[StremioClient] No streams found or invalid response format.");
-      // Check if there is an error in the response
-      if (data && data.err) {
-          console.error(`[StremioClient] Addon Error: ${data.err}`);
-      }
-      return [];
+    // Validate URLs + dedupe
+    const out = [];
+    const seen = new Set();
+    for (const s of subs) {
+      if (!s || !s.url || !safeUrl(s.url)) continue;
+      const key = `${s.lang || ""}::${s.url}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
     }
-    
-    console.log(`[StremioClient] Found ${data.streams.length} streams.`);
 
-    // --- 4. Mapping to Forward Format ---
-    // Forward expects: { name, description, url }
-    // Stremio returns: { name, title, url, infoHash... }
-    
-    return data.streams
-      .filter(stream => {
-        // Filter out items that Forward can't play directly (like Magnet links without a Debrid resolver)
-        // Since you are using AIOStream/Debrid, we expect 'url' to be present.
-        if (!stream.url) {
-             console.log(`[StremioClient] Skipping stream '${stream.title}' (No URL, possibly magnet/torrent)`);
-             return false;
-        }
-        return stream.url.startsWith('http');
-      })
-      .map(stream => {
-        // Construct a descriptive name
-        // stream.name usually holds the provider/quality (e.g. "RD+ 4k")
-        // stream.title usually holds the filename or extra details
-        let description = stream.title || "";
-        
-        // Sometimes description has newlines, we can keep them
-        return {
-          name: stream.name || "Stream",
-          description: description,
-          url: stream.url
-        };
-      });
-
-  } catch (error) {
-    console.error(`[StremioClient] Error fetching streams: ${error.message}`);
-    // Return empty array so the UI doesn't crash, just shows no results
+    return out;
+  } catch {
     return [];
   }
 }
