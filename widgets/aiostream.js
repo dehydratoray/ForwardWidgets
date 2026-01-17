@@ -22,8 +22,8 @@ WidgetMetadata = {
                     name: "addonUrl",
                     title: "Addon URL",
                     type: "input",
-                    description: "Stremio Addon URL (e.g. https://torrentio.strem.fun/manifest.json)",
-                    value: "https://torrentio.strem.fun/manifest.json"
+                    description: "Stremio Addon URL",
+                    value: "https://aio.lootah.app/stremio/39cf7e85-816f-41a5-aeee-175eceb61118/eyJpIjoiYzVjUHFsN1RsWVJxRjdQczIwNU5BUT09IiwiZSI6IlNLTDVyaWYvTzlSN3FMUHNMU1dRRDY5ZitVMHI0Vnl6T0RvODFDQjUweFU9IiwidCI6ImEifQ/manifest.json"
                 }
             ]
         }
@@ -31,28 +31,46 @@ WidgetMetadata = {
 };
 
 async function loadStream(params) {
-    const { imdbId, id, type, season, episode, addonUrl } = params;
+    const { imdbId, tmdbId, id, type, season, episode, addonUrl } = params;
 
     // 1. Validate ID
-    // Stremio relies heavily on IMDB IDs (tt...)
-    const stremioId = imdbId || id;
+    // Some Stremio addons (like Torrentio/AIO) support TMDB IDs natively as `tmdb:123`
+    // If no IMDB ID, we try TMDB.
+    let stremioId = imdbId;
+    let isTmdb = false;
+
     if (!stremioId) {
-        // Some addons might support TMDB, but standard is IMDB
-        console.warn("No IMDB ID provided, trying TMDB if available or failing.");
-        if (!params.tmdbId) throw new Error("No compatible ID (IMDB/TMDB) found.");
+        if (tmdbId) {
+            stremioId = tmdbId; // Use TMDB ID
+            isTmdb = true;
+        } else if (id && id.startsWith('tt')) {
+            stremioId = id; // Fallback to generic ID if it looks like IMDB
+        }
+    }
+
+    if (!stremioId) {
+        throw new Error(`No compatible ID found. Params: ${JSON.stringify(params)}`);
     }
 
     // 2. Construct Stream ID
-    // Movie: tt1234567
-    // Series: tt1234567:1:1
+    // IMDB Movie: tt1234567
+    // IMDB Series: tt1234567:1:1
+    // TMDB Movie: tmdb:123
+    // TMDB Series: tmdb:123:1:1
+
     let streamId = stremioId;
+
+    if (isTmdb) {
+        streamId = `tmdb:${stremioId}`;
+    }
+
     if (type === 'tv' && season && episode) {
-        streamId = `${stremioId}:${season}:${episode}`;
+        streamId = `${streamId}:${season}:${episode}`;
     }
 
     // 3. Prepare Addon URL
     // Strip /manifest.json if present to get base URL
-    let baseUrl = (addonUrl || "https://torrentio.strem.fun/manifest.json").replace('/manifest.json', '');
+    let baseUrl = (addonUrl || "https://aio.lootah.app/stremio/39cf7e85-816f-41a5-aeee-175eceb61118/eyJpIjoiYzVjUHFsN1RsWVJxRjdQczIwNU5BUT09IiwiZSI6IlNLTDVyaWYvTzlSN3FMUHNMU1dRRDY5ZitVMHI0Vnl6T0RvODFDQjUweFU9IiwidCI6ImEifQ/manifest.json").replace('/manifest.json', '');
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
     // 4. Construct Request URL
@@ -70,6 +88,7 @@ async function loadStream(params) {
         const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
 
         if (!data.streams || !Array.isArray(data.streams)) {
+            console.log("No streams found in response", data);
             return [];
         }
 
