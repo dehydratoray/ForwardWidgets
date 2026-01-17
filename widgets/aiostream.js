@@ -33,6 +33,8 @@ WidgetMetadata = {
 async function loadStream(params) {
     const { imdbId, tmdbId, id, type, season, episode, addonUrl } = params;
 
+    console.log("Stremio Widget v1.2 Params:", JSON.stringify(params));
+
     // 1. Validate ID
     // Some Stremio addons (like Torrentio/AIO) support TMDB IDs natively as `tmdb:123`
     // If no IMDB ID, we try TMDB.
@@ -41,15 +43,24 @@ async function loadStream(params) {
 
     if (!stremioId) {
         if (tmdbId) {
-            stremioId = tmdbId; // Use TMDB ID
+            stremioId = tmdbId;
             isTmdb = true;
-        } else if (id && id.startsWith('tt')) {
-            stremioId = id; // Fallback to generic ID if it looks like IMDB
+        } else if (id) {
+            // Fallback logic
+            if (id.startsWith('tt')) {
+                stremioId = id; // Looks like IMDB
+            } else if (/^\d+$/.test(id)) {
+                stremioId = id; // Looks like numeric TMDB ID
+                isTmdb = true;
+            } else {
+                // Unknown format, try using it as-is (maybe it's already tmdb:123 or a slug)
+                stremioId = id;
+            }
         }
     }
 
     if (!stremioId) {
-        throw new Error(`No compatible ID found. Params: ${JSON.stringify(params)}`);
+        throw new Error(`Stremio Error: No ID found. Input params: ${JSON.stringify(params)}`);
     }
 
     // 2. Construct Stream ID
@@ -60,7 +71,7 @@ async function loadStream(params) {
 
     let streamId = stremioId;
 
-    if (isTmdb) {
+    if (isTmdb && !String(stremioId).startsWith('tmdb:')) {
         streamId = `tmdb:${stremioId}`;
     }
 
