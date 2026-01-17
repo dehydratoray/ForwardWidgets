@@ -1,40 +1,55 @@
 /**
- * Stremio Client Widget
- * Simplified to match demo.js structure.
+ * 示例模块
+ * 给 module 指定 type 为 stream 或 subtitle 后，默认会携带以下参数：
+ * tmdbId: TMDB ID，Optional
+ * imdbId: IMDB ID，Optional
+ * id: Media ID，Optional
+ * type: 类型，tv | movie
+ * seriesName：剧名，Optional
+ * episodeName：集名，Optional
+ * season: 季，电影时为空，Optional
+ * episode: 集，电影时为空，Optional
+ * link: 链接，Optional
  */
 WidgetMetadata = {
-    id: "forward.stremio.simple",
+    id: "forward.meta.stremio",
     title: "Stremio AIO",
     icon: "https://stremio.com/website/stremio-logo-small.png",
     version: "1.0.0",
     requiredVersion: "0.0.1",
-    description: "Plays streams from AIO Lootah Addon.",
-    author: "Forward User",
-    site: "https://stremio.com",
+    description: "演示模块",
+    author: "Forward",
+    site: "https://github.com/InchStudio/ForwardWidgets",
     modules: [
         {
-            id: "loadResource", // Changed ID to match demo.js pattern (optional, but consistent)
-            title: "Load Stream",
-            functionName: "loadResource", // Changed function name to match demo.js pattern
+            //id需固定为getResource
+            id: "loadResource",
+            title: "加载资源",
+            functionName: "loadResource",
             type: "stream",
-            params: [] // No user params, just like demo.js
-        }
-    ]
+            params: [],
+        },
+        {
+            //id需固定为getDetail
+            id: "loadSubtitle",
+            title: "加载字幕",
+            functionName: "loadSubtitle",
+            type: "subtitle",
+            params: [],
+        },
+    ],
 };
 
 async function loadResource(params) {
-    console.log("Stremio Simple v1.0 Params:", JSON.stringify(params));
+    const { tmdbId, imdbId, id, type, seriesName, episodeName, season, episode, link } = params;
 
-    // Hardcoded URL as requested
+    // Stremio Addon URL (Hardcoded)
     const ADDON_URL = "https://aio.lootah.app/stremio/39cf7e85-816f-41a5-aeee-175eceb61118/eyJpIjoiYzVjUHFsN1RsWVJxRjdQczIwNU5BUT09IiwiZSI6IlNLTDVyaWYvTzlSN3FMUHNMU1dRRDY5ZitVMHI0Vnl6T0RvODFDQjUweFU9IiwidCI6ImEifQ/manifest.json";
 
-    const { imdbId, tmdbId, id, type, season, episode } = params;
-
-    // 1. Resolve ID
+    // Validate ID (Support TMDB & IMDB)
     let stremioId = imdbId;
     let isTmdb = false;
 
-    // Logic: Try IMDB first, then TMDB, then generic ID
     if (!stremioId) {
         if (tmdbId) {
             stremioId = tmdbId;
@@ -52,12 +67,11 @@ async function loadResource(params) {
     }
 
     if (!stremioId) {
-        console.error("No ID found in params:", params);
-        // Return empty array instead of throwing error to be safe
+        console.error("No compatible ID found");
         return [];
     }
 
-    // 2. Format ID for Stremio
+    // Construct Stream ID
     let streamId = stremioId;
     if (isTmdb && !String(stremioId).startsWith('tmdb:')) {
         streamId = `tmdb:${stremioId}`;
@@ -67,14 +81,12 @@ async function loadResource(params) {
         streamId = `${streamId}:${season}:${episode}`;
     }
 
-    // 3. Prepare URL
+    // Prepare Request
     let baseUrl = ADDON_URL.replace('/manifest.json', '');
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
     let stremioType = type === 'tv' ? 'series' : 'movie';
     const url = `${baseUrl}/stream/${stremioType}/${streamId}.json`;
-
-    console.log(`Fetching: ${url}`);
 
     try {
         const response = await Widget.http.get(url, {
@@ -92,9 +104,22 @@ async function loadResource(params) {
             description: (stream.title || stream.name || "") + "\n" + (stream.behaviorHints ? JSON.stringify(stream.behaviorHints) : ""),
             url: stream.url || ""
         }));
-
     } catch (e) {
-        console.error("Error fetching streams:", e);
+        console.error("Fetch failed", e);
         return [];
     }
+}
+
+async function loadSubtitle(params) {
+    const { tmdbId, imdbId, id, type, seriesName, episodeName, season, episode, link } = params;
+
+    return [
+        {
+            id: "test-subtitle",
+            title: "测试字幕",
+            lang: "en",
+            count: 100,
+            url: "https://dl.subhd.tv/2025/08/1754195078288.srt",
+        },
+    ]
 }
