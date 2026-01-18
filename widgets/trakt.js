@@ -3,6 +3,7 @@ WidgetMetadata = {
     title: "Trakt",
     author: "Forward User",
     version: "1.0.0",
+    requiredVersion: "0.0.1",
     description: "Browse Trending, Popular, and other lists from Trakt",
     modules: [
         {
