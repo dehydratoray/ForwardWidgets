@@ -175,7 +175,7 @@ var WidgetMetadata = {
     }
 };
 
-const TRAKT_CLIENT_ID = "YOUR_TRAKT_CLIENT_ID"; // Replace with your Trakt Client ID
+const TRAKT_CLIENT_ID = "06b6df28ce91aafbbedb1452531ef1e18d3404777e6591eafba904b46cd4ca6e"; // Replace with your Trakt Client ID
 const TRAKT_API_URL = "https://api.trakt.tv";
 
 async function fetchTrakt(endpoint, params = {}) {
