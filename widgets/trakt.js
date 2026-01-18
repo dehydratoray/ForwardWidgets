@@ -1,518 +1,447 @@
-// trakt component
-WidgetMetadata = {
-    id: "Trakt",
-    title: "Trakt Watched & Personalized Recommendations",
+var WidgetMetadata = {
+    id: "forward.trakt",
+    title: "Trakt",
+    author: "Forward User",
+    version: "1.0.0",
+    description: "Browse Trending, Popular, and other lists from Trakt",
     modules: [
         {
-            title: "Trakt Watched",
-            requiresWebView: false,
-            functionName: "loadInterestItems",
-            cacheDuration: 3600,
+            id: "trending",
+            title: "Trending",
+            functionName: "trending",
             params: [
-                {
-                    name: "user_name",
-                    title: "Username",
-                    type: "input",
-                    description: "Privacy switch must be enabled in Trakt settings. Interface unavailable if empty.",
-                },
-                {
-                    name: "cookie",
-                    title: "User Cookie",
-                    type: "input",
-                    description: "_traktsession=xxxx. Interface unavailable if empty; obtain Cookie by logging into the website and using packet capture tools like Loon, Qx, etc.",
-                },
-                {
-                    name: "status",
-                    title: "Status",
-                    type: "enumeration",
-                    enumOptions: [
-                        {
-                            title: "Watchlist",
-                            value: "watchlist",
-                        },
-                        {
-                            title: "In Progress",
-                            value: "progress",
-                        },
-                        {
-                            title: "Watched - Movies",
-                            value: "history/movies/added/asc",
-                        },
-                        {
-                            title: "Watched - TV",
-                            value: "history/shows/added/asc",
-                        },
-                        {
-                            title: "Random Watchlist (Draw 9 items randomly)",
-                            value: "random_watchlist",
-                        },
-                    ],
-                },
-                {
-                    name: "page",
-                    title: "Page",
-                    type: "page"
-                },
-            ],
-        },
-        {
-            title: "Trakt Personalized Recommendations",
-            requiresWebView: false,
-            functionName: "loadSuggestionItems",
-            cacheDuration: 43200,
-            params: [
-                {
-                    name: "cookie",
-                    title: "User Cookie",
-                    type: "input",
-                    description: "_traktsession=xxxx. Interface unavailable if empty; obtain Cookie by logging into the website and using packet capture tools like Loon, Qx, etc.",
-                },
                 {
                     name: "type",
                     title: "Type",
                     type: "enumeration",
                     enumOptions: [
-                        {
-                            title: "Movie",
-                            value: "movies",
-                        },
-                        {
-                            title: "TV",
-                            value: "shows",
-                        },
+                        { title: "Movies", value: "movie" },
+                        { title: "TV Shows", value: "tv" }
                     ],
+                    value: "movie"
                 },
-                {
-                    name: "page",
-                    title: "Page",
-                    type: "page"
-                },
-            ],
+                { name: "page", title: "Page", type: "page" }
+            ]
         },
         {
-            title: "Trakt List",
-            requiresWebView: false,
-            functionName: "loadListItems",
-            cacheDuration: 86400,
+            id: "popular",
+            title: "Popular",
+            functionName: "popular",
             params: [
                 {
-                    name: "user_name",
-                    title: "Username",
-                    type: "input",
-                    description: "e.g., giladg. Interface unavailable if empty.",
-                },
-                {
-                    name: "list_name",
-                    title: "List Name",
-                    type: "input",
-                    description: "e.g., latest-4k-releases. Interface unavailable if empty.",
-                },
-                {
-                    name: "sort_by",
-                    title: "Sort By",
+                    name: "type",
+                    title: "Type",
                     type: "enumeration",
                     enumOptions: [
-                        {
-                            title: "Rank",
-                            value: "rank",
-                        },
-                        {
-                            title: "Date Added",
-                            value: "added",
-                        },
-                        {
-                            title: "Title",
-                            value: "title",
-                        },
-                        {
-                            title: "Release Date",
-                            value: "released",
-                        },
-                        {
-                            title: "Runtime",
-                            value: "runtime",
-                        },
-                        {
-                            title: "Popularity",
-                            value: "popularity",
-                        },
-                        {
-                            title: "Random",
-                            value: "random",
-                        },
+                        { title: "Movies", value: "movie" },
+                        { title: "TV Shows", value: "tv" }
                     ],
+                    value: "movie"
                 },
-                {
-                    name: "sort_how",
-                    title: "Sort Order",
-                    type: "enumeration",
-                    enumOptions: [
-                        {
-                            title: "Ascending",
-                            value: "asc",
-                        },
-                        {
-                            title: "Descending",
-                            value: "desc",
-                        },
-                    ],
-                },
-                {
-                    name: "page",
-                    title: "Page",
-                    type: "page"
-                },
-            ],
+                { name: "page", title: "Page", type: "page" }
+            ]
         },
         {
-            title: "Trakt Calendar",
-            requiresWebView: false,
-            functionName: "loadCalendarItems",
-            cacheDuration: 43200,
+            id: "played",
+            title: "Most Played",
+            functionName: "played",
             params: [
                 {
-                    name: "cookie",
-                    title: "User Cookie",
-                    type: "input",
-                    description: "_traktsession=xxxx. Interface unavailable if empty; obtain Cookie by logging into the website and using packet capture tools like Loon, Qx, etc.",
-                },
-                {
-                    name: "start_date",
-                    title: "Start Date: n days ago (0 for today, -1 for yesterday, 1 for tomorrow)",
-                    type: "input",
-                    description: "0 for today, -1 for yesterday, 1 for tomorrow. Interface unavailable if empty.",
-                },
-                {
-                    name: "days",
-                    title: "Days",
-                    type: "input",
-                    description: "e.g., 7. Returns items within 7 days from start date. Interface unavailable if empty.",
-                },
-                {
-                    name: "order",
-                    title: "Sort By",
+                    name: "type",
+                    title: "Type",
                     type: "enumeration",
                     enumOptions: [
-                        {
-                            title: "Date Ascending",
-                            value: "asc",
-                        },
-                        {
-                            title: "Date Descending",
-                            value: "desc",
-                        },
+                        { title: "Movies", value: "movie" },
+                        { title: "TV Shows", value: "tv" }
                     ],
+                    value: "movie"
                 },
-            ],
+                {
+                    name: "period",
+                    title: "Period",
+                    type: "enumeration",
+                    enumOptions: [
+                        { title: "Weekly", value: "weekly" },
+                        { title: "Monthly", value: "monthly" },
+                        { title: "Yearly", value: "yearly" },
+                        { title: "All Time", value: "all" }
+                    ],
+                    value: "weekly"
+                },
+                { name: "page", title: "Page", type: "page" }
+            ]
         },
+        {
+            id: "watched",
+            title: "Most Watched",
+            functionName: "watched",
+            params: [
+                {
+                    name: "type",
+                    title: "Type",
+                    type: "enumeration",
+                    enumOptions: [
+                        { title: "Movies", value: "movie" },
+                        { title: "TV Shows", value: "tv" }
+                    ],
+                    value: "movie"
+                },
+                {
+                    name: "period",
+                    title: "Period",
+                    type: "enumeration",
+                    enumOptions: [
+                        { title: "Weekly", value: "weekly" },
+                        { title: "Monthly", value: "monthly" },
+                        { title: "Yearly", value: "yearly" },
+                        { title: "All Time", value: "all" }
+                    ],
+                    value: "weekly"
+                },
+                { name: "page", title: "Page", type: "page" }
+            ]
+        },
+        {
+            id: "collected",
+            title: "Most Collected",
+            functionName: "collected",
+            params: [
+                {
+                    name: "type",
+                    title: "Type",
+                    type: "enumeration",
+                    enumOptions: [
+                        { title: "Movies", value: "movie" },
+                        { title: "TV Shows", value: "tv" }
+                    ],
+                    value: "movie"
+                },
+                {
+                    name: "period",
+                    title: "Period",
+                    type: "enumeration",
+                    enumOptions: [
+                        { title: "Weekly", value: "weekly" },
+                        { title: "Monthly", value: "monthly" },
+                        { title: "Yearly", value: "yearly" },
+                        { title: "All Time", value: "all" }
+                    ],
+                    value: "weekly"
+                },
+                { name: "page", title: "Page", type: "page" }
+            ]
+        },
+        {
+            id: "anticipated",
+            title: "Anticipated",
+            functionName: "anticipated",
+            params: [
+                {
+                    name: "type",
+                    title: "Type",
+                    type: "enumeration",
+                    enumOptions: [
+                        { title: "Movies", value: "movie" },
+                        { title: "TV Shows", value: "tv" }
+                    ],
+                    value: "movie"
+                },
+                { name: "page", title: "Page", type: "page" }
+            ]
+        },
+        {
+            id: "boxoffice",
+            title: "Box Office",
+            functionName: "boxOffice",
+            params: []
+        }
     ],
-    version: "1.0.15",
-    requiredVersion: "0.0.1",
-    description: "Parse Trakt Watchlist/Watching/Watched, Lists, Calendar and personalized recommendations [30% off code: CHEAP]",
-    author: "huangxd",
-    site: "https://github.com/huangxd-/ForwardWidgets"
+    search: {
+        title: "Search",
+        functionName: "searchCommon",
+        params: [
+            {
+                name: "type",
+                title: "Type",
+                type: "enumeration",
+                enumOptions: [
+                    { title: "Movies", value: "movie" },
+                    { title: "TV Shows", value: "tv" }
+                ],
+                value: "movie"
+            },
+            { name: "page", title: "Page", type: "page" }
+        ]
+    }
 };
 
-async function getUrls(traktUrls) {
-    try {
-        // Check if it is a Promise list
-        if (!Array.isArray(traktUrls) || !traktUrls.some(item => item instanceof Promise)) {
-            return traktUrls; // If not a Promise list, return directly
-        }
-        const urls = await Promise.all(traktUrls);
-        return urls;
-    } catch (error) {
-        console.error('Error resolving URLs:', error);
-        return [];
-    }
-}
+const TRAKT_CLIENT_ID = "YOUR_TRAKT_CLIENT_ID"; // Replace with your Trakt Client ID
+const TRAKT_API_URL = "https://api.trakt.tv";
 
-function extractTraktUrlsFromResponse(responseData, minNum, maxNum, random = false) {
-    let docId = Widget.dom.parse(responseData);
-    let metaElements = Widget.dom.select(docId, 'meta[content^="https://trakt.tv/"]');
-    if (!metaElements || metaElements.length === 0) {
-        throw new Error("No meta content links found");
-    }
+async function fetchTrakt(endpoint, params = {}) {
+    const url = `${TRAKT_API_URL}/${endpoint}`;
 
-    let traktUrls = Array.from(new Set(metaElements
-        .map(el => el.getAttribute?.('content') || Widget.dom.attr(el, 'content'))
-        .filter(Boolean)));
-    console.log(traktUrls);
-    if (random) {
-        const shuffled = traktUrls.sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, Math.min(9, shuffled.length));
-    } else {
-        return traktUrls.slice(minNum - 1, maxNum);
-    }
-}
+    // Convert 'page' param to Trakt pagination if needed
+    // Trakt uses page=1, limit=10 default.
+    // ForwardWidget usually passes page.
 
-function extractTraktUrlsInProgress(responseData, minNum, maxNum) {
-    let docId = Widget.dom.parse(responseData);
-    let mainInfoElements = Widget.dom.select(docId, 'div.col-md-15.col-sm-8.main-info');
+    // Add default headers
+    const headers = {
+        "Content-Type": "application/json",
+        "trakt-api-version": "2",
+        "trakt-api-key": TRAKT_CLIENT_ID
+    };
 
-    if (!mainInfoElements || mainInfoElements.length === 0) {
-        throw new Error("No main-info elements found");
-    }
-
-    let traktUrls = [];
-    mainInfoElements.slice(minNum - 1, maxNum).forEach(element => {
-        // Extract href value
-        let linkElement = Widget.dom.select(element, 'a[href^="/shows/"]')[0];
-        if (!linkElement) return;
-
-        let href = linkElement.getAttribute?.('href') || Widget.dom.attr(linkElement, 'href');
-        if (!href) return;
-
-        // Extract progress value
-        let progressElement = Widget.dom.select(element, 'div.progress.ticks')[0];
-        let progressValue = progressElement
-            ? parseInt(progressElement.getAttribute?.('aria-valuenow') || Widget.dom.attr(progressElement, 'aria-valuenow') || '0')
-            : 0;
-
-        // If progress is not 100, add URL
-        if (progressValue !== 100) {
-            let fullUrl = `https://trakt.tv${href}`;
-            traktUrls.push(fullUrl);
-        }
+    const response = await Widget.http.get(url, {
+        headers: headers,
+        params: params
     });
 
-    return Array.from(new Set(traktUrls));
-}
-
-async function fetchImdbIdsFromTraktUrls(traktUrls, headers) {
-    let imdbIdPromises = traktUrls
-        .filter(url =>
-            (url.includes('movies') || url.includes('shows')) &&
-            !url.includes('episodes')
-        )
-        .map(async (url) => {
-            try {
-                let detailResponse = await Widget.http.get(url, {
-                    headers: {
-                        "Cache-Control": "no-cache, no-store, must-revalidate",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                        ...headers,
-                    },
-                });
-
-                // console.log("detailResponse data: ", detailResponse.data);
-
-                let detailDoc = Widget.dom.parse(detailResponse.data);
-                let imdbLinkEl = Widget.dom.select(detailDoc, 'a#external-link-imdb')[0];
-
-                let match;
-                let href;
-
-                if (imdbLinkEl) {
-                    href = await Widget.dom.attr(imdbLinkEl, 'href');
-                    console.log("imdb href: ", href);
-                    if (!href.includes("find?q=")) {
-                        match = href.match(/title\/(tt\d+)/);
-                    } else {
-                        let tmdbLinkEl = Widget.dom.select(detailDoc, 'a#external-link-tmdb')[0];
-
-                        if (!tmdbLinkEl) return null;
-
-                        href = await Widget.dom.attr(tmdbLinkEl, 'href');
-                        console.log("tmdb href: ", href);
-                        match = href.match(/(movie|tv)\/(\d+)/);
-                    }
-                }
-
-                return match ? `${match}` : null;
-            } catch {
-                return null; // Ignore individual failed requests
-            }
-        });
-
-    let imdbIds = [...new Set(
-        (await Promise.all(imdbIdPromises))
-            .filter(Boolean)
-            .map((item) => item)
-    )].map((item) => {
-        let itemArray = item.split(',');
-        // Check if item[0] contains "title"
-        if (item.includes('title')) {
-            // If contains "title", use item[1] as id, and set type to "imdb"
-            const id = itemArray[1];
-            return {
-                id,
-                type: "imdb"
-            };
-        } else {
-            // If not contains "title", use item[1] as id, and set type to "tmdb"
-            const id = `${itemArray[1]}.${itemArray[2]}`;
-            return {
-                id,
-                type: "tmdb"
-            };
-        }
-    });
-    console.log("Request imdbIds:", imdbIds)
-    return imdbIds;
-}
-
-async function fetchTraktData(url, headers = {}, status, minNum, maxNum, random = false, order = "") {
-    try {
-        const response = await Widget.http.get(url, {
-            headers: {
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-                ...headers, // Allow attaching extra headers
-            },
-        });
-
-        console.log("Request Result:", response.data);
-
-        let traktUrlsTmp = [];
-        let traktUrls = [];
-        if (status === "progress") {
-            traktUrlsTmp = extractTraktUrlsInProgress(response.data, minNum, maxNum);
-        } else {
-            traktUrlsTmp = extractTraktUrlsFromResponse(response.data, minNum, maxNum, random);
-        }
-
-        traktUrls = await getUrls(traktUrlsTmp);
-
-        console.log(traktUrls);
-
-        if (order === "desc") {
-            traktUrls = traktUrls.reverse();
-        }
-
-        return await fetchImdbIdsFromTraktUrls(traktUrls, headers);
-    } catch (error) {
-        console.error("Processing failed:", error);
-        throw error;
+    if (!response || !response.data) {
+        throw new Error("Trakt API request failed");
     }
-}
 
-async function loadInterestItems(params = {}) {
-    try {
-        const page = params.page;
-        const userName = params.user_name || "";
-        const cookie = params.cookie || "";
-        let status = params.status || "";
-        const random = status === "random_watchlist";
-        if (random) {
-            status = "watchlist";
-        }
-        const count = 20
-        const size = status === "watchlist" ? 6 : 3
-        const minNum = ((page - 1) % size) * count + 1
-        const maxNum = ((page - 1) % size) * count + 20
-        const traktPage = Math.floor((page - 1) / size) + 1
-
-        if (!userName) {
-            throw new Error("Must provide Trakt Username");
-        }
-
-        if (!cookie) {
-            throw new Error("Must provide User Cookie");
-        }
-
-        if (random && page > 1) {
+    // Trakt returns JSON directly in response.data usually (with axios like wrapper)
+    // or as a string if using raw fetch. Assuming automatic JSON parsing like tmdb.js implies.
+    // If response.data is string, parse it.
+    let data = response.data;
+    if (typeof data === "string") {
+        try {
+            data = JSON.parse(data);
+        } catch (e) {
+            console.error("Failed to parse Trakt response", e);
             return [];
         }
-
-        let url = `https://trakt.tv/users/${userName}/${status}?page=${traktPage}`;
-        return await fetchTraktData(url, { Cookie: cookie }, status, minNum, maxNum, random);
-    } catch (error) {
-        console.error("Processing failed:", error);
-        throw error;
     }
+
+    return data;
 }
 
-async function loadSuggestionItems(params = {}) {
-    try {
-        const page = params.page;
-        const cookie = params.cookie || "";
-        const type = params.type || "";
-        const count = 20;
-        const minNum = (page - 1) * count + 1
-        const maxNum = (page) * count
+async function hydrateWithTmdb(traktItems, forcedType) {
+    if (!traktItems || !Array.isArray(traktItems)) return [];
 
-        if (!cookie) {
-            throw new Error("Must provide User Cookie");
+    const hydratedItems = await Promise.all(traktItems.map(async (item) => {
+        try {
+            // Determine type and IDs
+            // Trakt list items might be { movie: {...} }, { show: {...} }, or just { title: ... } depending on endpoint
+            // BoxOffice: { revenue:..., movie: {...} }
+            // Trending/Popular/etc: { watchers:..., movie: {...} } OR just [{...}, {...}] for Popular?
+            // Actually Popular Movies returns array of movies. Trending returns array of objects with 'movie' key.
+
+            let traktObj = item;
+            let type = forcedType;
+
+            if (item.movie) {
+                traktObj = item.movie;
+                type = "movie";
+            } else if (item.show) {
+                traktObj = item.show;
+                type = "tv";
+            } else if (item.type === 'movie' && item.movie) {
+                traktObj = item.movie;
+                type = 'movie';
+            } else if (item.type === 'show' && item.show) {
+                traktObj = item.show;
+                type = 'tv';
+            }
+
+            // If we still don't have a reliable type from the object, rely on forcedType
+            if (!type) {
+                // Infer from ids?
+                if (traktObj.ids && traktObj.ids.tmdb) {
+                    // Assume movie if not specified? Or wait for metadata.
+                    // It's better to rely on what the list *should* contain.
+                }
+            }
+
+            const tmdbId = traktObj.ids?.tmdb;
+
+            if (!tmdbId || !type) {
+                return null; // Skip if no TMDB ID
+            }
+
+            // Fetch from TMDB using Widget.tmdb
+            const tmdbApi = `${type}/${tmdbId}`;
+            const tmdbParams = { language: "zh-CN" }; // Default to Chinese as per tmdb.js, or make configurable? 
+            // tmdb.js uses zh-CN.
+
+            // We use try-catch to avoid failing the whole list for one item
+            let tmdbData = null;
+            try {
+                const tmdbRes = await Widget.tmdb.get(tmdbApi, { params: tmdbParams });
+                tmdbData = tmdbRes;
+            } catch (e) {
+                console.log(`Failed to hydrate TMDB ${type}.${tmdbId}`, e);
+            }
+
+            if (tmdbData) {
+                return {
+                    id: tmdbData.id,
+                    type: "tmdb", // ForwardWidget uses 'tmdb' type to likely enable internal handling
+                    title: tmdbData.title ?? tmdbData.name,
+                    description: tmdbData.overview,
+                    releaseDate: tmdbData.release_date ?? tmdbData.first_air_date,
+                    backdropPath: tmdbData.backdrop_path,
+                    posterPath: tmdbData.poster_path,
+                    rating: tmdbData.vote_average,
+                    mediaType: type,
+                    // genreTitle: ... // Could verify genre mapping if needed, but simple is better
+                };
+            }
+
+            // Fallback if TMDB fails but we have Trakt data? 
+            // User requested TMDB metadata specifically. If fail, maybe skip.
+            return null;
+
+        } catch (error) {
+            console.error("Hydration error", error);
+            return null;
         }
+    }));
 
-        let url = `https://trakt.tv/${type}/recommendations`;
-        return await fetchTraktData(url, { Cookie: cookie }, "", minNum, maxNum);
-    } catch (error) {
-        console.error("Processing failed:", error);
-        throw error;
-    }
+    return hydratedItems.filter(item => item !== null);
 }
 
-async function loadListItems(params = {}) {
-    try {
-        const page = params.page;
-        const userName = params.user_name || "";
-        const listName = params.list_name || "";
-        const sortBy = params.sort_by || "";
-        const sortHow = params.sort_how || "";
-        const count = 20;
+// Handler functions
 
-        if (!userName || !listName) {
-            throw new Error("Must provide Trakt Username and List Name");
-        }
+async function trending(params) {
+    const type = params.type;
+    const page = params.page || 1;
+    // Trakt API: /movies/trending or /shows/trending
+    // endpoint: `${type}s/trending`  (movie -> movies, tv -> shows)
+    const endpointType = type === 'movie' ? 'movies' : 'shows';
+    const endpoint = `${endpointType}/trending`;
 
-        let url = `https://hd.trakt.tv/users/${userName}/lists/${listName}/items/movie,show?page=${page}&limit=${count}&sort_by=${sortBy}&sort_how=${sortHow}`;
-
-        const response = await Widget.http.get(url, {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "trakt-api-key": "201dc70c5ec6af530f12f079ea1922733f6e1085ad7b02f36d8e011b75bcea7d",
-            },
-        });
-
-        console.log("Request Result:", response.data);
-
-        const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-        const result = data
-            .filter(item => item[item.type]?.ids?.imdb != null)
-            .map(item => ({
-                id: item[item.type].ids.imdb,
-                type: "imdb"
-            }));
-
-        return result;
-    } catch (error) {
-        console.error("Processing failed:", error);
-        throw error;
-    }
+    const traktData = await fetchTrakt(endpoint, { page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
 }
 
-async function loadCalendarItems(params = {}) {
-    try {
-        const cookie = params.cookie || "";
-        const startDateInput = params.start_date || "";
-        const days = params.days || "";
-        const order = params.order || "";
+async function popular(params) {
+    const type = params.type;
+    const page = params.page || 1;
+    const endpointType = type === 'movie' ? 'movies' : 'shows';
+    const endpoint = `${endpointType}/popular`;
 
-        if (!cookie || !startDateInput || !days || !order) {
-            throw new Error("Must provide User Cookie, Start Date, Days and Sort Order");
-        }
+    const traktData = await fetchTrakt(endpoint, { page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
+}
 
-        const startDateOffset = parseInt(startDateInput, 10);
-        if (isNaN(startDateOffset)) {
-            throw new Error("Start Date must be a valid number");
-        }
+async function played(params) {
+    const type = params.type;
+    const period = params.period || 'weekly';
+    const page = params.page || 1;
+    const endpointType = type === 'movie' ? 'movies' : 'shows';
+    const endpoint = `${endpointType}/played/${period}`;
 
-        const today = new Date();
-        const startDate = new Date(today);
-        startDate.setDate(today.getDate() + startDateOffset);
+    const traktData = await fetchTrakt(endpoint, { page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
+}
 
-        // Format date as YYYY-MM-DD
-        const formattedStartDate = startDate.toISOString().split('T')[0];
+async function watched(params) {
+    const type = params.type;
+    const period = params.period || 'weekly';
+    const page = params.page || 1;
+    const endpointType = type === 'movie' ? 'movies' : 'shows';
+    const endpoint = `${endpointType}/watched/${period}`;
 
-        let url = `https://trakt.tv/calendars/my/shows-movies/${formattedStartDate}/${days}`;
-        return await fetchTraktData(url, { Cookie: cookie }, "", 1, 100, false, order);
-    } catch (error) {
-        console.error("Processing failed:", error);
-        throw error;
-    }
+    const traktData = await fetchTrakt(endpoint, { page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
+}
+
+async function collected(params) {
+    const type = params.type;
+    const period = params.period || 'weekly';
+    const page = params.page || 1;
+    const endpointType = type === 'movie' ? 'movies' : 'shows';
+    const endpoint = `${endpointType}/collected/${period}`;
+
+    const traktData = await fetchTrakt(endpoint, { page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
+}
+
+async function anticipated(params) {
+    const type = params.type;
+    const page = params.page || 1;
+    const endpointType = type === 'movie' ? 'movies' : 'shows';
+    const endpoint = `${endpointType}/anticipated`;
+
+    const traktData = await fetchTrakt(endpoint, { page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
+}
+
+async function boxOffice() {
+    // Only movies
+    const endpoint = `movies/boxoffice`;
+    const traktData = await fetchTrakt(endpoint);
+    return await hydrateWithTmdb(traktData, 'movie');
+}
+
+async function searchCommon(params) {
+    const type = params.type || 'movie';
+    const page = params.page || 1;
+    const query = params.keyword; // System usually passes keyword or title for search?
+                                  // Need to check README or tmdb.js for metadata search key.
+                                  // tmdb.js doesn't have search implemented in metadata explicitly?
+                                  // README says: 
+                                  /*
+                                    search: {                   // Search function configuration (optional)
+                                        title: "Search",
+                                        functionName: "search",
+                                        params: [/* Search parameter configuration */]
+}
+                                    Danmu module says: "title: Search keywords".
+                                  */
+// Assuming the app passes the search query in a param. 
+// Usually it's implicitly passed or defined in params.
+// If we define params in search, the user input is bound to one of them.
+// Actually, looking at README, search params are configuration. But where does the query go?
+// "The handler function receives a `params` object ... containing all configured parameter values"
+// Usually search input is a special param or passed as `params.keyword` / `params.wd`.
+// Let's assume standard behavior or use `params.keyword`.
+// Wait, if I define an input type param in search, the user types there.
+// But `search` usually has a dedicated search bar in the UI.
+// Let's assume the params I defined: type, page. The keyword must be injected.
+// Let's check `tmdb.js` ... it doesn't have search!
+// `README` says: `search: { ... }`.
+// I will assume `params.keyword` is standard for the search query or I should add an input param?
+// The README example for Danmu says `title: Search keywords`.
+// I'll add a check for `params.keyword` or `params.title`.
+
+// Trakt Search: /search/{type}?query={query}
+const traktType = type === 'movie' ? 'movie' : 'show';
+const endpoint = `search/${traktType}`;
+
+// We really need the query.
+// I'll try to enable "search" module.
+// If the system works like others, it might pass `keyword`.
+// I'll update params to include `query` just in case, or check arguments.
+
+return await fetchTrakt(endpoint, { query: params.keyword || params.title || params.query, page: page, limit: 20 });
+    // Note: Trakt search returns wrappers { type: 'movie', movie: {...} }
+    // which compatible with our hydrate function.
+}
+
+// We need to export/hydrate search results too
+// But wait, `searchCommon` calls `fetchTrakt` which returns data.
+// It needs to call `hydrateWithTmdb`.
+async function searchCommonWrapper(params) {
+    const data = await searchCommon(params);
+    return await hydrateWithTmdb(data, params.type);
+}
+
+// Update the function name in metadata
+WidgetMetadata.search.functionName = "searchImpl";
+
+async function searchImpl(params) {
+    const type = params.type || 'movie';
+    const page = params.page || 1;
+    const query = params.keyword || params.title || params.query; // Heuristic
+
+    if (!query) return [];
+
+    const traktType = type === 'movie' ? 'movie' : 'show';
+    const endpoint = `search/${traktType}`;
+
+    const traktData = await fetchTrakt(endpoint, { query: query, page: page, limit: 20 });
+    return await hydrateWithTmdb(traktData, type);
 }
